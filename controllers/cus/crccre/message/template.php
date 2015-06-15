@@ -96,14 +96,14 @@ class template extends \xxt_base {
             if (!empty($url)) {
                 $mpsrc = strpos($url, '?') ? '&' : '?';
                 $mpsrc .= 'mpsrc=wx'; 
-                $url .= $mpsrc;
+                $url1 = $url.$mpsrc;
             } 
             /**
              * 处理消息数据并发送
              */
             $msg = array(
                 'template_id'=>'yHKOEV6FxO7WhMIbm0ncKzH2lgY37s3DqPk11hniAZU',
-                'url'=>$url,
+                'url'=>$url1,
                 'topcolor'=>'#FF0000',
                 'data'=>array(
                     'first'=>array(
@@ -142,7 +142,8 @@ class template extends \xxt_base {
         if (!empty($url)) {
             $mpsrc = strpos($url, '?') ? '&' : '?';
             $mpsrc .= 'mpsrc=qy'; 
-            $content .= " <a href='$url$mpsrc'>".urlencode('详情')."</a>";
+            $url2 = $url.$mpsrc;
+            $content .= " <a href='$url2'>".urlencode('详情')."</a>";
         }
         $message = array(
             "msgtype"=>"text",
