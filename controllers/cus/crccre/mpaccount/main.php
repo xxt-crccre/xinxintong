@@ -26,7 +26,7 @@ class main extends \xxt_base {
      */
     public function accessToken_action($mpid)
     {
-        $mpa = $this->model('mp\mpaacount')->byId($mpid);
+        $mpa = $this->model('mp\mpaccount')->byId($mpid);
         $mpproxy = $this->model('mpproxy/'.$mpa->mpsrc, $mpid);
 
         $rst = $mpproxy->accessToken($mpid, 'wx');
