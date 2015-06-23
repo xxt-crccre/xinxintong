@@ -125,7 +125,6 @@ class xxt_base extends TMS_CONTROLLER {
         $fan = array();
         $fan['fid'] = $fid; 
         $fan['mpid'] = $mpid; 
-        $fan['src'] = 'qy'; 
         $fan['openid'] = $user->userid; 
         $fan['nickname'] = $user->name; 
         isset($user->avatar) && $fan['headimgurl'] = $user->avatar; 
@@ -205,7 +204,6 @@ class xxt_base extends TMS_CONTROLLER {
             $fan = array();
             $fan['fid'] = $fid; 
             $fan['mpid'] = $mpid; 
-            $fan['src'] = 'qy'; 
             $fan['openid'] = $user->userid; 
             $fan['nickname'] = $user->name; 
             isset($user->avatar) && $fan['headimgurl'] = $user->avatar; 
@@ -273,6 +271,17 @@ class xxt_base extends TMS_CONTROLLER {
         $mpproxy = $this->model('mpproxy/yx', $mpid);
 
         $rst = $mpproxy->messageSend($message, $openids);
+
+        return $rst;
+    }
+    /**
+     * 通过微信
+     */
+    public function send_to_wxuser_by_preview($mpid, $message, $openid)
+    {
+        $mpproxy = $this->model('mpproxy/wx', $mpid);
+        
+        $rst = $mpproxy->messageMassPreview($message, $openid);
 
         return $rst;
     }

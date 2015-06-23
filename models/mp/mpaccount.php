@@ -212,7 +212,7 @@ class mpaccount_model extends \TMS_MODEL {
         return $mprelay;
     }
     /**
-     *
+     * 添加转发接口
      */
     public function addRelay($aRelay)
     {
@@ -226,5 +226,52 @@ class mpaccount_model extends \TMS_MODEL {
 
         return $relay;
     }
-}
+    /**
+     * 群发消息
+     * 需要开通群发接口
+     */
+    public function mass2mps($sender, $matterId, $matterType, $mpids) 
+    {
+        if (empty($mpids)) return array(false, '没有指定接收消息的公众号');
 
+        $mpModel = \TMS_APP::M('mp\mpaccount');
+        foreach ($mpids as $mpid) {
+            $mpaccount = $mpModel->byId($mpid);
+            $mpsrc = $mpaccount->mpsrc;
+            /**
+             * set message
+             */
+            $matterModel = \TMS_APP::M('matter\\'.$matterType);
+            if ($mpsrc === 'wx' && in_array($matterType, array('article', 'news', 'channel'))) {
+                /**
+                 * 微信的图文群发消息需要上传到公众号平台，所以链接素材无法处理
+                 */
+                $message = $matterModel->forWxGroupPush($mpid, $matterId);
+            } else {
+                $message = $matterModel->forCustomPush($mpid, $matterId);
+            }
+            if (empty($message)) {
+                $warning[$mpid] = '指定的素材无法向公众号用户群发！';
+                continue;
+            }
+            /**
+             * send
+             */
+            $mpsrc === 'wx' && $message['filter'] = array('is_to_all'=> true);
+            $mpproxy = \TMS_APP::M('mpproxy/'.$mpsrc, $mpid);
+            $rst = $mpproxy->send2group($message);
+             if ($rst[0] === true) {
+                $msgid = isset($rst[1]->msg_id) ? $rst[1]->msg_id : 0;
+                \TMS_APP::M('log')->mass($sender, $mpid, $matterType, $matterId, $message, $msgid, 'ok');
+            } else {
+                $warning[$mpid] = $rst[1];
+                \TMS_APP::M('log')->mass($sender, $mpid, $matterType, $matterId, $message, 0, $rst[1]);
+            }
+        }
+        
+        if (!empty($warning)) 
+            return array(false, $warning);
+        else
+            return array(true, 'ok');
+    }
+}
