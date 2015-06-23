@@ -11,11 +11,9 @@ class fee extends wycs_base {
      */
     public function get_action($mpid, $houseid='', $mocker='') 
     {
-        $projectid = $this->getProjectId($mpid);
-
         $openid = empty($mocker) ? $this->getCookieOAuthUser($mpid) : $mocker;
 
-        $rst = $this->customInfo($projectid, $openid);
+        $rst = $this->customInfo($mpid, $openid);
         if ($rst[0] === false)
             return new \ResponseError($rst[1]);
 

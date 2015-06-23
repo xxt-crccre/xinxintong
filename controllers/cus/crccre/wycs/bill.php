@@ -11,12 +11,10 @@ class bill extends wycs_base {
      */
     public function list_action($mpid, $houseid='', $mocker='') 
     {
-        $projectid = $this->getProjectId($mpid);
-        
         $openid = empty($mocker) ? $this->getCookieOAuthUser($mpid) : $mocker;
         
         if (empty($houseid)) {
-            $rst = $this->customInfo($projectid, $openid);
+            $rst = $this->customInfo($mpid, $openid);
             if ($rst[0] === false)
                 return new \ResponseError($rst[1]);
             $customInfo = $rst[1];
@@ -58,12 +56,10 @@ class bill extends wycs_base {
      */
     public function detail_action($mpid, $billid, $type='维修', $from='维修', $houseid='', $mocker='') 
     {
-        $projectid = $this->getProjectId($mpid);
-        
         $openid = empty($mocker) ? $this->getCookieOAuthUser($mpid) : $mocker;
         
         if (empty($houseid)) {
-            $rst = $this->customInfo($projectid, $openid);
+            $rst = $this->customInfo($mpid, $openid);
             if ($rst[0] === false)
                 return new \ResponseError($rst[1]);
             $customInfo = $rst[1];

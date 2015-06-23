@@ -58,7 +58,9 @@ class auth extends wycs_base {
                         $house[$n] = (string)$v;
                     $houselist[] = $house;
                 }
-                return new \ResponseData(array('client'=>$client,'houselist'=>$houselist));
+                $custom = array('client'=>$client,'houselist'=>$houselist);
+                $this->setCustom2Member($mpid, $openid, $custom, $phone);
+                return new \ResponseData($custom);
             } else 
                 return new \ResponseError((string)$xml->result->failmessage);
         } catch (Exception $e) {
@@ -70,11 +72,9 @@ class auth extends wycs_base {
      */
     public function user_action($mpid, $mocker='') 
     {
-        $projectid = $this->getProjectId($mpid);
-
         $openid = empty($mocker) ? $this->getCookieOAuthUser($mpid) : $mocker;
 
-        $rst = $this->customInfo($projectid, $openid);
+        $rst = $this->customInfo($mpid, $openid);
         if ($rst[0] === false)
             return new \ResponseError($rst[1]);
 

@@ -93,10 +93,11 @@ class template extends \xxt_base {
         );
         $openids = $this->model()->query_vals_ss($q);
         if (!empty($openids)) {
-            if (!empty($url)) {
-                $mpsrc = strpos($url, '?') ? '&' : '?';
+            $url1 = $url;
+            if (!empty($url1)) {
+                $mpsrc = strpos($url1, '?') ? '&' : '?';
                 $mpsrc .= 'mpsrc=wx'; 
-                $url1 = $url.$mpsrc;
+                $url1 = $url1.$mpsrc;
             } 
             /**
              * 处理消息数据并发送
@@ -139,10 +140,11 @@ class template extends \xxt_base {
          * todo 临时方法，向企业号同时发布
          */
         $content = urlencode($text);
-        if (!empty($url)) {
-            $mpsrc = strpos($url, '?') ? '&' : '?';
+        $url2 = $url;
+        if (!empty($url2)) {
+            $mpsrc = strpos($url2, '?') ? '&' : '?';
             $mpsrc .= 'mpsrc=qy'; 
-            $url2 = $url.$mpsrc;
+            $url2 = $url2.$mpsrc;
             $content .= " <a href='$url2'>".urlencode('详情')."</a>";
         }
         $message = array(

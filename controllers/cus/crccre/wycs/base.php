@@ -35,8 +35,10 @@ class wycs_base extends \member_base {
     /**
      * 返回当前用户相关信息
      */
-    protected function customInfo($projectid, $openid)
+    protected function customInfo($mpid, $openid)
     {
+        $projectid = $this->getProjectId($mpid);
+         
         $param = new \stdClass;
         $param->pk_projectid = $projectid;
         $param->wechatid = $openid;
@@ -60,7 +62,9 @@ class wycs_base extends \member_base {
                         $house[$n] = (string)$v;
                     $houselist[] = $house;
                 }
-                return array(true, array('client'=>$client,'houselist'=>$houselist));
+                $custom = array('client'=>$client,'houselist'=>$houselist);
+                $this->setCustom2Member($mpid, $openid, $custom);
+                return array(true, $custom);
             }
         } else 
             return array(false, (string)$xml->result->failmessage);
@@ -74,5 +78,41 @@ class wycs_base extends \member_base {
         include_once dirname(__FILE__).'/PROJECTS.php';
 
         return $MPID_TO_PROJECTID[$mpid]['projectid'];
+    }
+    /**
+     * authid=19
+     */
+    private function setCustom2Member($mpid, $openid, $client, $mobile='')
+    {
+        $authid = 19;
+        /**
+         * get auth settings.
+         */
+        $attrs = $this->model('user/authapi')->byId($authid, 'attr_mobile,attr_email,attr_name,attr_password,extattr'); 
+        
+        $userModel = $this->model('user/member');
+        if (false === ($member = $userModel->byOpenid($mpid, $openid, 'mid', $authid))) {
+            /**
+             * 基本信息
+             */
+            $member = new \stdClass;
+            $member->mpid = $mpid;
+            $member->authapi_id = $authid;
+            $member->name = $client['client']['name'];
+            $member->mobile = $mobile;
+            /**
+             * 房屋信息
+             */
+            $house = array();
+            foreach ($client['houselist'] as $h) {
+                $house[] = $h['name']. (empty($h['clienttype']) ? '': "（".$h['clienttype']."）");
+            }
+            $member->house = implode(',', $house);
+            
+            $fan = $this->model('user/fans')->byOpenid($mpid, $openid, 'fid');
+            $this->model('user/member')->create($fan->fid, $member, $attrs);
+        }
+        
+        return false;
     }
 }
