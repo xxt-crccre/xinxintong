@@ -7,20 +7,18 @@ class auth extends wycs_base {
     /**
      *
      */
-    public function vcode_action()
+    public function vcode_action($phone)
     {
-        $custom = $this->getPostJson();
         $vcode = mt_rand(1000,9999);
-        //$_SESSION['vcode'] = $vcode;
-        //$_SESSION['vcode'] = 1234;
-        //$str = urlencode("您的验证码为".$code);
-        //$url = "http://um.crccre.cn/webservices/mobile.asmx/SendMessage?message=".($str)."&addressee=".$custom->phone;
-        $rst = file_get_contents($url);
-
-        $xml = simplexml_load_string($rst);
-        $rst = (string)$xml;
-
-        return new ResponseData($rst);
+        
+        $_SESSION['vcode'] = $vcode;
+        $str = urlencode("您的验证码为".$vcode);
+        
+        $rst = $this->sendSms($phone, $str);
+        if ($rst === '1')
+            return new \ResponseData('ok');
+        else 
+            return new \ResponseError($rst);
     }
     /**
      *
@@ -32,14 +30,17 @@ class auth extends wycs_base {
         $openid = empty($mocker) ? $this->getCookieOAuthUser($mpid) : $mocker;
         
         $custom = $this->getPostJson();
-        //$vcode = 1234;
+        
+        //$vcode = $custom->vcode;
         //if ($vcode != $_SESSION['vcode'])
         //    return new ResponseError('没有获得有效的验证码');
+        
         $card = $custom->card;
         $phone = $custom->phone;
         /**
          * 调用sso接口进行身份验证
          */
+        $rst = $this->customInfo($)
         try {
             $soap = $this->soap();
             $param = new \stdClass;
@@ -54,6 +55,7 @@ class auth extends wycs_base {
                 foreach ($xml->result->client->attributes() as $n => $v)
                     $client[$n] = (string)$v;
                 foreach ($xml->result->houselist->children() as $nodehouse) {
+                    $house = array();
                     foreach ($nodehouse->attributes() as $n => $v)
                         $house[$n] = (string)$v;
                     $houselist[] = $house;

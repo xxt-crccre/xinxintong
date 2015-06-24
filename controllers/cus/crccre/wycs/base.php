@@ -82,7 +82,7 @@ class wycs_base extends \member_base {
     /**
      * authid=19
      */
-    private function setCustom2Member($mpid, $openid, $client, $mobile='')
+    protected function setCustom2Member($mpid, $openid, $client, $mobile='')
     {
         $authid = 19;
         /**
@@ -95,6 +95,11 @@ class wycs_base extends \member_base {
             /**
              * 创建新认证用户
              */
+            $mapTags = array();
+            $existentTags = $this->model('user/tag')->byAuthid($authid, 'id,name');
+            foreach ($existentTags as $etag) {
+                $mapTags[$etag->name] = $etag->id;
+            }
             /**
              * 基本信息
              */
@@ -108,15 +113,42 @@ class wycs_base extends \member_base {
             /**
              * 房屋信息
              */
+            $memberTags = array();
             $house = array();
             foreach ($client['houselist'] as $h) {
-                $house[] = $h['name']. (empty($h['clienttype'] || $h['clienttype']==='null') ? '': "（".$h['clienttype']."）");
+                $housetype = $h['housetype'];
+                $clienttype = (empty($h['clienttype']) || $h['clienttype']==='null') ? '' : $h['clienttype'];
+                if (!empty($housetype)) {
+                    if (isset($mapTags[$housetype])) {
+                        $tagid = $mapTags[$housetype];
+                    } else {
+                        $ntag = new \stdClass;
+                        $ntag->authapi_id = $authid;
+                        $ntag->name = $housetype;
+                        $ntag = $this->model('user/tag')->create($mpid, $ntag);
+                        $tagid = $ntag['id'];
+                    }
+                }
+                if (!empty($clienttype)) {
+                    if (isset($mapTags[$clienttype])) {
+                        $tagid = $mapTags[$clienttype];
+                    } else {
+                        $ntag = new \stdClass;
+                        $ntag->authapi_id = $authid;
+                        $ntag->name = $clienttype;
+                        $ntag = $this->model('user/tag')->create($mpid, $ntag);
+                        $tagid = $ntag['id'];
+                    }
+                }
+                isset($tagid) && !in_array($tagid, $memberTags) && $memberTags[] = $tagid;
+                
+                $house[] = $h['name'] . (empty($clienttype) ? '': "（" . $clienttype . "）");
             }
             $member->house = implode(',', $house);
             /**
              * 打标签
              */
-            //$member->tags = $tags;                       
+            $member->tags = implode(',', $memberTags);     
             
             $fan = $this->model('user/fans')->byOpenid($mpid, $openid, 'fid');
             $this->model('user/member')->create($fan->fid, $member, $attrs);
@@ -127,5 +159,20 @@ class wycs_base extends \member_base {
         }
         
         return false;
+    }
+    /**
+     * 发送短信
+     */    
+    protected function sendSms($mobile, $msg)
+    {
+        $url = "http://if.crccre.cn/WebServices/CallMethod.ashx";
+        $url .= "?GUID=D0A54ECB-69B4-4038-88CB-AE7B30EEA37C";
+        $url .= "&AppGUID=3a9113bb-720c-4a05-a9fa-bc827ae7afd2";
+        $url .= "&Telphone=$mobile";
+        $url .= "&Message=$msg";
+        
+        $rsp = file_get_contents($url);
+        
+        return $rsp;
     }
 }
