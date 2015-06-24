@@ -93,11 +93,16 @@ class wycs_base extends \member_base {
         $userModel = $this->model('user/member');
         if (false === ($member = $userModel->byOpenid($mpid, $openid, 'mid', $authid))) {
             /**
+             * 创建新认证用户
+             */
+            /**
              * 基本信息
              */
             $member = new \stdClass;
             $member->mpid = $mpid;
             $member->authapi_id = $authid;
+            $member->authed_identity = $mobile;
+            $member->sync_at = time();
             $member->name = $client['client']['name'];
             $member->mobile = $mobile;
             /**
@@ -105,12 +110,20 @@ class wycs_base extends \member_base {
              */
             $house = array();
             foreach ($client['houselist'] as $h) {
-                $house[] = $h['name']. (empty($h['clienttype']) ? '': "（".$h['clienttype']."）");
+                $house[] = $h['name']. (empty($h['clienttype'] || $h['clienttype']==='null') ? '': "（".$h['clienttype']."）");
             }
             $member->house = implode(',', $house);
+            /**
+             * 打标签
+             */
+            //$member->tags = $tags;                       
             
             $fan = $this->model('user/fans')->byOpenid($mpid, $openid, 'fid');
             $this->model('user/member')->create($fan->fid, $member, $attrs);
+        } else {
+            /**
+             * 更新已有认证用户
+             */
         }
         
         return false;

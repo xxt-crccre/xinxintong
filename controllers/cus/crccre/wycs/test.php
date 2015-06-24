@@ -24,4 +24,13 @@ class test extends submit_base {
         
         return new \ResponseData($rst);
     }
+    /**
+     *
+     */
+    public function memberRemove_action($mpid, $mid)
+    {
+        $rst = $this->model()->delete('xxt_member', "mpid='$mpid' and mid='$mid'");
+        
+        return new \ResponseData($rst);
+    }
 }
