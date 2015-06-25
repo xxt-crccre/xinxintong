@@ -21,7 +21,7 @@ class wycs_base extends \member_base {
     {
         ini_set('soap.wsdl_cache_enabled', '0');
         $soap = new \SoapClient(
-            'http://wycs.crccre.cn/axis2/services/wykf_wechat_Service?wsdl', 
+            'http://wykf.crccre.cn/axis2/services/wykf_wechat_Service?wsdl', 
             array(
                 'soap_version' => SOAP_1_2,
                 'encoding'=>'utf-8',
@@ -35,16 +35,16 @@ class wycs_base extends \member_base {
     /**
      * 返回当前用户相关信息
      */
-    protected function customInfo($mpid, $openid)
+    protected function customInfo($mpid, $openid, $mobile='')
     {
         $projectid = $this->getProjectId($mpid);
-         
+        if (!$projectid)  return array(false, '没有找到公众号匹配的项目');
+        
         $param = new \stdClass;
         $param->pk_projectid = $projectid;
         $param->wechatid = $openid;
         $rst = $this->soap()->queryClientInfo($param);
         $xml = simplexml_load_string($rst->return);
-
         if ((string)$xml->result['name'] === 'success') {
             if (!isset($xml->result->client)) {
                 /**
@@ -63,12 +63,11 @@ class wycs_base extends \member_base {
                     $houselist[] = $house;
                 }
                 $custom = array('client'=>$client,'houselist'=>$houselist);
-                $this->setCustom2Member($mpid, $openid, $custom);
+                $this->setCustom2Member($mpid, $openid, $custom, $mobile);
                 return array(true, $custom);
             }
         } else 
             return array(false, (string)$xml->result->failmessage);
-
     }
     /**
      *
@@ -76,8 +75,9 @@ class wycs_base extends \member_base {
     protected function getProjectId($mpid)
     {
         include_once dirname(__FILE__).'/PROJECTS.php';
-
-        return $MPID_TO_PROJECTID[$mpid]['projectid'];
+        $projectId = isset($MPID_TO_PROJECTID[$mpid]) ? $MPID_TO_PROJECTID[$mpid]['projectid'] : false;
+        
+        return $projectId;
     }
     /**
      * authid=19
@@ -174,5 +174,52 @@ class wycs_base extends \member_base {
         $rsp = file_get_contents($url);
         
         return $rsp;
+    }
+    /**
+     *
+     */
+    protected function sendSms2($mobile, $msg)
+    {
+        ini_set('soap.wsdl_cache_enabled', '0');
+        $soap = new \SoapClient(
+            'http://111.11.26.232/SmsService/service/SMSPlatformService?wsdl', 
+            array(
+                'soap_version' => SOAP_1_1,
+                'encoding'=>'utf-8',
+                'exceptions'=>true, 
+                'trace'=>1, 
+            )
+        );
+        
+        try {
+            $smscontent = $msg;
+            $billcode = 'sms6008';
+            
+            $param = new \stdClass;
+            $param->serialNu = 1000052720;
+            $param->serialpw = '2014'; 
+            $param->numberCount = 1; 
+            $param->smcontent = $smscontent;
+            $param->billcode = 'sms6008';
+            $rst = $soap->auditMessage($param);
+            $auditId = (int)$rst->return;
+            if ($auditId <= 0) return array(false, $auditId);
+            
+            $param = new \stdClass;
+            $param->phonenumber = array($mobile);
+            $param->smscontent = $smscontent;
+            $param->billcode = 113; 
+            $param->seqno = 1000052720;
+            $param->sendtime = '';
+            $param->oldpw = '2014';
+            $param->auditId = $auditId;
+            
+            $rst = $soap->sendSMS($param);
+            $rst = (int)$rst->return;
+            
+            return array(true, $rst);
+        } catch (Exception $e) {
+            return array(false, $e->getMessage());
+        }
     }
 }
