@@ -43,7 +43,11 @@ class wycs_base extends \member_base {
         $param = new \stdClass;
         $param->pk_projectid = $projectid;
         $param->wechatid = $openid;
-        $rst = $this->soap()->queryClientInfo($param);
+        try {
+            $rst = $this->soap()->queryClientInfo($param);
+        } catch (Exception $e) {
+            return array(false, $e->getMessage());
+        }
         $xml = simplexml_load_string($rst->return);
         if ((string)$xml->result['name'] === 'success') {
             if (!isset($xml->result->client)) {

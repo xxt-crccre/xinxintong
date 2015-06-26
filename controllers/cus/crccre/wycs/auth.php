@@ -5,6 +5,27 @@ require_once dirname(__FILE__).'/base.php';
 
 class auth extends wycs_base {
     /**
+     * 打开认证页面
+     *
+     * $mpid
+     * $authid
+     * $openid
+     *
+     * 打开认证页，完成认证不一定意味着通过认证，可能还需要发送验证邮件或短信验证码
+     *
+     * 如果公众号支持OAuth，那么应该优先使用OAuth获得openid
+     * 只有在无法通过OAuth获得openid时才完全信任直接传入的openid
+     * 直接传入的openid不一定可靠
+     *
+     * 因为微信中OAuth不能在iframe中执行，所以需要在一开始进入页面的时候就执行OAuth，不能等到认证时再执行
+     * 所以只有在无法获得之前页面取得OAuth时，认证页面才做OAuth
+     *
+     */
+    public function index_action($mpid, $authid, $code=null) 
+    {
+        $this->redirect("/rest/mi/matter?mpid=$mpid&id=41&type=article");    
+    }
+    /**
      * 发送短信验证码
      */
     public function vcode_action($phone)
