@@ -21,7 +21,7 @@ class submit_base extends wycs_base {
 
         $picurls2 = implode('|', $picurls2);
 
-        $param = new \stdClass;
+        /*$param = new \stdClass;
         $param->clientid = $data->clientid;
         $param->content  = str_replace(' ', '', $data->content);
         $param->filepath = $picurls2;
@@ -30,12 +30,41 @@ class submit_base extends wycs_base {
         $param->isowner  = $data->isowner;
         $param->wechatid = $openid;
         $param->billid   = "";
-        try {
-            $rst = $this->soap()->submitBussinessBill($param);
-        } catch (\Exception $e) {
-            return new \ResponseError($e->getMessage());
+        $param = (array)$param;*/
+        
+        //try {
+        //    $rst = $this->soap()->submitBussinessBill($param);
+        //} catch (\Exception $e) {
+        //    return new \ResponseError($e->getMessage());
+        //}
+        //$xml = simplexml_load_string($rst->return);
+        
+        $param[] = 'clientid=' . $data->clientid;
+        $param[] = 'content=' . str_replace(' ', '', $data->content);
+        $param[] = 'filepath=' . $picurls2;
+        $param[] = 'billtype=' . $billType;
+        $param[] = 'houseid=' . $data->houseid;
+        $param[] = 'isowner=' . $data->isowner;
+        $param[] = 'wechatid=' . $openid;
+        $param = implode('&', $param);
+
+        $url = 'http://wykf.crccre.cn/LsInterfaceServer/ztjinterface/submitBussinessBill';
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-www-form-urlencoded'));
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $param);
+        
+        if (false === ($response = curl_exec($ch))) {
+            $err = curl_error($ch);
+            curl_close($ch);
+            return array(false, $err);
         }
-        $xml = simplexml_load_string($rst->return);
+        curl_close($ch);
+        
+        $xml = simplexml_load_string($response);
         $resultAttrs = $xml->result->attributes();
         if ((string)$resultAttrs['name'] === 'success')
             return new \ResponseData(array('id'=>(string)$xml->result->billid));

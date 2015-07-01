@@ -6,6 +6,12 @@ require_once dirname(dirname(dirname(dirname(__FILE__)))).'/member_base.php';
  *
  */
 class wycs_base extends \member_base {
+    
+    protected $MPID_TO_PROJECTID = array(
+        '94c9a3a001041bb895430ea7b5014023'=>array(
+            'projectid'=>'0044C0760E005433F21D',
+        )
+    );
 
     public function get_access_rule() 
     {
@@ -38,7 +44,8 @@ class wycs_base extends \member_base {
     protected function customInfo($mpid, $openid, $mobile='')
     {
         $projectid = $this->getProjectId($mpid);
-        if (!$projectid)  return array(false, '没有找到公众号匹配的项目');
+        
+        if (!$projectid) return array(false, '没有找到公众号匹配的项目');
         
         $param = new \stdClass;
         $param->pk_projectid = $projectid;
@@ -78,8 +85,7 @@ class wycs_base extends \member_base {
      */
     protected function getProjectId($mpid)
     {
-        include_once dirname(__FILE__).'/PROJECTS.php';
-        $projectId = isset($MPID_TO_PROJECTID[$mpid]) ? $MPID_TO_PROJECTID[$mpid]['projectid'] : false;
+        $projectId = isset($this->MPID_TO_PROJECTID[$mpid]) ? $this->MPID_TO_PROJECTID[$mpid]['projectid'] : false;
         
         return $projectId;
     }
@@ -132,6 +138,7 @@ class wycs_base extends \member_base {
                         $ntag = $this->model('user/tag')->create($mpid, $ntag);
                         $tagid = $ntag['id'];
                     }
+                    isset($tagid) && !in_array($tagid, $memberTags) && $memberTags[] = $tagid;
                 }
                 if (!empty($clienttype)) {
                     if (isset($mapTags[$clienttype])) {
@@ -143,8 +150,8 @@ class wycs_base extends \member_base {
                         $ntag = $this->model('user/tag')->create($mpid, $ntag);
                         $tagid = $ntag['id'];
                     }
+                    isset($tagid) && !in_array($tagid, $memberTags) && $memberTags[] = $tagid;
                 }
-                isset($tagid) && !in_array($tagid, $memberTags) && $memberTags[] = $tagid;
                 
                 $house[] = $h['name'] . (empty($clienttype) ? '': "（" . $clienttype . "）");
             }

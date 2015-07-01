@@ -45,17 +45,22 @@ class auth extends wycs_base {
     /**
      * 微信用户与业主身份绑定
      */
-    public function bind_action($mpid, $mocker=null)
+    public function bind_action($mpid)
     {
-        $projectid = $this->getProjectId($mpid);
-        
-        $openid = empty($mocker) ? $this->getCookieOAuthUser($mpid) : $mocker;
-        
         $custom = $this->getPostJson();
         
-        $vcode = $custom->vcode;
-        if ($vcode != $_SESSION['vcode'])
-            return new ResponseError('没有获得有效的验证码');
+        if (empty($custom->phone))
+            return new \ParameterError('未提供手机号');
+        if (empty($custom->card))
+            return new \ParameterError('未提供身份证后4位');
+        
+        $projectid = $this->getProjectId($mpid);
+        
+        $openid = $this->getCookieOAuthUser($mpid);
+        
+        //$vcode = $custom->vcode;
+        //if ($vcode != $_SESSION['vcode'])
+        //    return new ResponseError('没有获得有效的验证码');
         
         $card = $custom->card;
         $phone = $custom->phone;
@@ -78,7 +83,7 @@ class auth extends wycs_base {
                     return new \ResponseError($rst[1]);
                 return new \ResponseData($rst[1]);
             } else 
-                return new \ResponseError((string)$xml->result->failmessage);
+                return new \ParameterError((string)$xml->result->failmessage);
         } catch (Exception $e) {
             return new \ResponseError($e->getMessage());
         }
@@ -95,5 +100,91 @@ class auth extends wycs_base {
             return new \ResponseError($rst[1]);
 
         return new \ResponseData($rst[1]);
+    }
+    /**
+     * 返回组织机构组件
+     */
+    public function memberSelector_action($authid)
+    {
+        $addon = array(
+            'js'=>'/views/default/member/memberSelector.js',
+            'view'=>"/rest/member/auth/organization?authid=$authid"
+        );
+        return new \ResponseData($addon);
+    }
+    /**
+     *
+     */
+    public function organization_action($authid)
+    {
+        $this->view_action('/member/memberSelector');
+    }
+    /**
+     * 检查指定用户是否在acl列表中
+     *
+     * $authid
+     * $uid
+     */
+    public function checkAcl_action($authid,$uid)
+    {
+        $q = array(
+            '*',
+            'xxt_member',
+            "authapi_id=$authid and authed_identity='$uid' and forbidden='N'"
+        );
+        $members = $this->model()->query_objs_ss($q);
+        if (empty($members)) 
+            return new \ResponseError('指定的认证用户不存在');
+
+        $acls = $this->getPostJson();
+
+        foreach ($members as $member) {
+            foreach ($acls as $acl) {
+                switch ($acl->idsrc) {
+                case 'D':
+                    $depts = json_decode($member->depts);
+                    if (!empty($depts)) {
+                        $aDepts = array();
+                        foreach ($depts as $ds)
+                            $aDepts = array_merge($aDepts, $ds);
+                        if (in_array($acl->identity, $aDepts))
+                            return new \ResponseData('passed');
+                    }
+                    break;
+                case 'T':
+                    $aMemberTags = explode(',', $member->tags);
+                    $aIdentity = explode(',', $acl->identity);
+                    $aIntersect = array_intersect($aIdentity, $aMemberTags);
+                    if (count($aIntersect) === count($aIdentity))
+                        return new \ResponseData('passed');
+                    break;
+                case 'M':
+                    if ($member->mid === $acl->identity)
+                        return new \ResponseData('passed');
+                    break;
+                case 'DT':
+                    $depts = json_decode($member->depts);
+                    if (!empty($depts)) {
+                        $aMemberDepts = array();
+                        foreach ($depts as $ds)
+                            $aMemberDepts = array_merge($aMemberDepts, $ds);
+                        $aMemberTags = explode(',', $member->tags);
+                        /**
+                         * 第一个是部门，后面是标签，需要同时匹配
+                         */
+                        $aIdentity = explode(',', $acl->identity);
+                        if (in_array($aIdentity[0], $aMemberDepts)) {
+                            unset($aIdentity[0]);
+                            $aIntersect = array_intersect($aIdentity, $aMemberTags);
+                            if (count($aIntersect) === count($aIdentity))
+                                return new \ResponseData('passed');
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        return new \ResponseError('no matched');
     }
 }

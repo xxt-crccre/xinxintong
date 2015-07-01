@@ -60,9 +60,25 @@ class test extends submit_base {
                     return new \ResponseError($rst[1]);
                 return new \ResponseData($rst[1]);
             } else 
-                return new \ResponseError((string)$xml->result->failmessage);
+                return new \ParameterError((string)$xml->result->failmessage);
         } catch (Exception $e) {
             return new \ResponseError($e->getMessage());
         }
+    }
+    /**
+     *
+     */
+    public function submit_action($mpid='94c9a3a001041bb895430ea7b5014023', $openid='o9HqNs4HQgmCQGQNZYHZL4UJpO8Y')
+    {
+        $projectid = $this->getProjectId($mpid);
+        $billType = "维修单";
+        
+        $data = new \stdClass;
+        $data->clientid = '002AC841470026759456';
+        $data->content = 'yy-test';
+        $data->houseid = '002AE5170E00190D7C60';
+        $data->isowner = 'Y';
+        
+        return $this->doSubmit($mpid, $openid, $projectid, $data, $billType);
     }
 }

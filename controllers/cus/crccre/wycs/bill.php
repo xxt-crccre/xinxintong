@@ -33,17 +33,21 @@ class bill extends wycs_base {
         $rst = $this->soap()->queryBussinessBill($param);
         $xml = simplexml_load_string($rst->return);
         $resultAttrs = $xml->result->attributes();
-        if ((string)$resultAttrs['name'] === 'success' && !empty($xml->result->billlist)) {
-            $sumAttrs = $xml->result->sum->attributes();
-            $sum = (int)$sumAttrs['num'];
-            $bills = array();
-            foreach($xml->result->billlist->children() as $nodebill) {
-                $bill = array();
-                foreach ($nodebill->attributes() as $n => $v)
-                    $bill[$n] = (string)$v;
-                $bills[] = $bill;
+        if ((string)$resultAttrs['name'] === 'success') {
+            if (!empty($xml->result->billlist)) {
+                $sumAttrs = $xml->result->sum->attributes();
+                $sum = (int)$sumAttrs['num'];
+                $bills = array();
+                foreach($xml->result->billlist->children() as $nodebill) {
+                    $bill = array();
+                    foreach ($nodebill->attributes() as $n => $v)
+                        $bill[$n] = (string)$v;
+                    $bills[] = $bill;
+                }
+                return new \ResponseData((array('bills'=>$bills, 'sum'=>$sum)));
+            } else {
+                return new \ResponseData((array('bills'=>array(), 'sum'=>0)));
             }
-            return new \ResponseData((array('bills'=>$bills, 'sum'=>$sum)));
         } else
             return new \ResponseError((string)$xml->result->failmessage);
     }
