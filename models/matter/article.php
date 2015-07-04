@@ -255,7 +255,7 @@ class article_model extends article_base {
      * $mid member's id
      * $phase
      */
-    public function forward($mpid, $id, $mid, $phase)
+    public function forward($mpid, $id, $mid, $phase, $remark='')
     {
         $q = array(
             '*', 
@@ -276,6 +276,14 @@ class article_model extends article_base {
             );
         }
         
+        $member = \TMS_APP::M('user/member')->byId($mid);
+        if (!empty($meber->name)) {
+            $disposerName = $member->name;
+        } else {
+            $fan = \TMS_APP::M('user/fans')->byId($member->fid);
+            $disposerName = $fan->nickname;
+        }
+        
         $seq = empty($last) ? 1 : $last->seq + 1;
         
         $newlog = array( 
@@ -283,9 +291,11 @@ class article_model extends article_base {
             'article_id' => $id,
             'seq' => $seq,
             'mid' => $mid,
+            'disposer_name' => $disposerName,
             'send_at' => time(),
             'state' => 'P',
-            'phase' => $phase
+            'phase' => $phase,
+            'remark' => $remark
         );
         $newlog['id'] = $this->insert('xxt_article_review_log', $newlog, true);
         
@@ -305,5 +315,21 @@ class article_model extends article_base {
         $lastlog = $this->query_obj_ss($q);
         
         return $lastlog;
+    }
+    /**
+     *
+     */
+    public function &reviewlogs($id) 
+    {
+        $q = array(
+            'id,seq,mid,phase,state,disposer_name,send_at,receive_at,read_at,remark',
+            'xxt_article_review_log',
+            "article_id='$id'"
+        );
+        $q2 = array('o' => 'seq desc');
+        
+        $logs = $this->query_objs_ss($q);
+        
+        return $logs;
     }
 }

@@ -1,4 +1,4 @@
-xxtApp = angular.module('xxtApp', ['ui.tms', 'matters.xxt']);
+xxtApp = angular.module('xxtApp', ['ngRoute', 'ui.tms', 'matters.xxt']);
 xxtApp.config(['$locationProvider', '$controllerProvider', function ($locationProvider, $controllerProvider) {
     $locationProvider.html5Mode(true);
     xxtApp.register = { controller: $controllerProvider.register };
@@ -42,13 +42,14 @@ xxtApp.factory('Article', function ($q, http2) {
 
         return promise;
     };
-    Article.prototype.return = function (obj) {
+    Article.prototype.return = function (obj, msg) {
         var deferred = $q.defer();
         var promise = deferred.promise;
         var url;
         url = this.baseUrl + 'articleReturn';
         url += '?mpid=' + this.mpid;
         url += '&id=' + obj.id;
+        url += '&msg=' + msg;
         http2.get(url, function success(rsp) {
             deferred.resolve(rsp.data);
         });
@@ -227,6 +228,25 @@ xxtApp.factory('News', function ($q, http2) {
         return promise;
     };
     return News;
+});
+xxtApp.factory('Reviewlog', function ($q, http2) {
+    var Reviewlog = function (phase, mpid, matter) {
+        this.mpid = mpid;
+        this.matter = matter;
+        this.baseUrl = '/rest/app/contribute/reviewlog/';
+    };
+    Reviewlog.prototype.list = function (id) {
+        var deferred = $q.defer(), promise = deferred.promise;
+        var url = this.baseUrl + 'list';
+        url += '?mpid=' + this.mpid;
+        url += '&matterId=' + this.matter.id;
+        url += '&matterType=' + this.matter.type;
+        http2.get(url, function success(rsp) {
+            deferred.resolve(rsp.data);
+        });
+        return promise;
+    };
+    return Reviewlog;
 });
 xxtApp.controller('ReviewUserPickerCtrl', ['$scope', '$modalInstance', 'userSetAsParam', function ($scope, $mi, userSetAsParam) {
     $scope.userConfig = { userScope: ['M'] };

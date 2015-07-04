@@ -93,7 +93,7 @@ angular.module('ui.tms', []).service('http2', ['$rootScope', '$http', function (
 }]).directive('combox', function () {
     return {
         restrict: 'EA',
-        scope: { readonly: '@', retainState: '@', evtPrefix: '@', prop: '@', existing: '=', options: '=', state: '@' },
+        scope: { disabled:'@', readonly: '@', retainState: '@', evtPrefix: '@', prop: '@', existing: '=', options: '=', state: '@' },
         controller: 'ComboxController',
         templateUrl: function () {
             return '/static/template/combox.html?_=2';
@@ -480,5 +480,14 @@ angular.module('ui.tms', []).service('http2', ['$rootScope', '$http', function (
         replace: true,
         transclude: true
     }
+})
+    .directive('tmsAutoFocus', function ($timeout) {
+    return {
+        restrict: 'A',
+        link: function (_scope, _element) {
+            $timeout(function () {
+                _element[0].focus();
+            });
+        }
+    };
 });
-
