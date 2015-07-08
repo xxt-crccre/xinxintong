@@ -1,5 +1,5 @@
-<div ng-controller='StatCtrl'>
-    <table class='table table-bordered' ng-repeat="s in stat">
+<div>
+    <table ng-if='stat.length' class='table table-bordered' ng-repeat="s in stat">
         <caption>{{s.title}}</caption>
         <thead>
             <tr>
@@ -14,4 +14,5 @@
             </tr>
         </tbody>
     </table>
+    <div class='alert alert-info'>没有统计数据</div>
 </div>
