@@ -20,22 +20,6 @@ class qyauth extends \member_base {
     /**
      *
      */
-    protected function soap() 
-    {
-        if (!isset($this->soap)) {
-            ini_set('soap.wsdl_cache_enabled', '0');
-            $this->soap = new \SoapClient(
-                'http://um.crccre.cn/webservices/adgrouptree.asmx?wsdl', 
-                array(
-                    'soap_version' => SOAP_1_2,
-                    'encoding'=>'utf-8',
-                    'exceptions'=>true, 
-                    'trace'=>1, 
-                )
-            );
-        }
-        return $this->soap;
-    }
     public function get_access_rule() 
     {
         $rule_action['rule_type'] = 'white';
@@ -119,6 +103,11 @@ class qyauth extends \member_base {
      */
     public function import2Qy_action($mpid, $authid, $next=null, $step=0)
     {
+        /**
+         * 更新时间戳
+         */
+        $timestamp = time();
+        
         if (empty($next)) {
             /**
              * 获得企业号通讯录中已有的所有部门
@@ -234,7 +223,15 @@ class qyauth extends \member_base {
         unset($_SESSION['localDepts']);
         unset($_SESSION['existUsers']);
         unset($_SESSION['uploadUsers']);
-
+        /**
+         * 更新时间戳
+         */        
+        $this->model()->update(
+            'xxt_member_authapi', 
+            array('sync_to_qy_at' => $timestamp), 
+            "authid=$authid"
+        );
+         
         return new \ResponseData(array($dCounter, $existDepts, $uCounter, $existUsers, $warning));
     }
     /**
@@ -245,10 +242,109 @@ class qyauth extends \member_base {
      */
     public function sync2Qy_action($mpid, $authid)
     {
-        return new \ResponseData('ok');
+        /**
+         * 更新时间戳
+         */
+        $timestamp = time();
+        
+        $last = (int)$this->model()->query_val_ss(array(
+            'sync_to_qy_at',
+            'xxt_member_authapi',
+            "authid=$authid"
+        ));
+        
+        $result = array();
+        
+        $proxy = $this->model('mpproxy/qy', $mpid);
+        $modelOrg = $this->model('cus/org'); 
+        $logs = $modelOrg->getOperationHistorysByTime($last);
+        
+        foreach ($logs as $log) {
+            switch ($log['operation']) {
+                case '1': // 新建用户
+                    $parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
+                    $mobile = empty($log['mobile']) ? '151'.rand(1000,9999).'0000':$log['mobile'];
+                    $user = array(
+                        'guid'=>$log['guid'],
+                        'useraccount'=>$log['useraccount'],
+                        'name'=>$log['title'],
+                        'mobile'=>$mobile,
+                        'department'=>array($parentNode['id']),
+                    );
+                    $rst = $proxy->userCreate($user['useraccount'], $user);
+                    $result[] = array($log, $rst);
+                    break;
+                case '2': // 修改用户
+                case '4': // 迁移用户（阴影部分的parentguid是您唯一需要修改的数据，用户迁移只修改了它的父节点）
+                    $parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
+                    $mobile = empty($log['mobile']) ? '151'.rand(1000,9999).'0000':$log['mobile'];
+                    $user = array(
+                        'guid'=>$log['guid'],
+                        'useraccount'=>$log['useraccount'],
+                        'name'=>$log['title'],
+                        'mobile'=>$mobile,
+                        'department'=>array($parentNode['id']),
+                    );
+                    $rst = $proxy->userUpdate($user['useraccount'], $user);
+                    $result[] = array($log, $rst);
+                    break;
+                case '3': // 删除用户
+                    $rst = $proxy->userDelete($log['useraccount']);
+                    $result[] = array($log, $rst);
+                break;
+                case '5': // 新建组织
+                    $deptNode = $modelOrg->getNodeByGUID($log['guid']);
+                    $parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
+                    $dept = array(
+                        'id' => $deptNode['id'],
+                        'title' => $deptNode['title'],
+                        'pid' => array($parentNode['id']),
+                        'order' => $deptNode['orderid'],
+                    );
+                    $rst = $proxy->departmentCreate($dept['title'], $dept['pid'], $dept['order'], $dept['id']);
+                    $result[] = array($log, $rst);
+                    break;
+                case '6': // 更新组织
+                    $deptNode = $modelOrg->getNodeByGUID($log['guid']);
+                    $rst = $proxy->departmentUpdate($deptNode['id'], $deptNode['title']);
+                    $result[] = array($log, $rst);
+                    break;
+                case '7': // 删除组织
+                    $deptNode = $modelOrg->getNodeByGUID($log['guid']);
+                    $rst = $proxy->departmentDelete($deptNode['id']);
+                    $result[] = array($log, $rst);
+                break;
+                case '8': // 虚拟组织添加子节点
+                break;
+                case '9': // 虚拟组织移除子节点
+                break;
+                case '10': // 给员工添加岗位
+                break;
+                case '0': // 新建虚拟根节点
+                break;
+                case '-1': // 删除虚拟根节点
+                break;
+                case '-2': // 修改虚拟根节点
+                break;
+                case '-3': // 应用程序用户规则调整
+                break;
+                case '-4': // 虚拟角色组织更新
+                break;
+            }
+        }
+        /**
+         * 更新时间戳
+         */        
+        $this->model()->update(
+            'xxt_member_authapi', 
+            array('sync_to_qy_at' => $timestamp), 
+            "authid=$authid"
+        );
+        
+        return new \ResponseData($result);
     }
     /**
-     * 将内部组织结构数据增量导入到企业号通讯录 
+     * 将企业号数据增量导入到企业内部组织结构 
      *
      * $mpid
      * $authid

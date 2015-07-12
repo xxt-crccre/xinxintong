@@ -115,4 +115,29 @@ class org_model extends TMS_MODEL {
 
         return $nodes;
     }
+    /**
+     *
+     */
+    public function getOperationHistorysByTime($after)
+    {
+        $param = new stdClass;
+        $param->year = (int)date('Y', $after);
+        $param->month = (int)date('n', $after);
+        $param->day = (int)date('j', $after);
+        $param->hour = (int)date('G', $after);
+        $param->minute = (int)date('i', $after);
+        $param->second = (int)date('s', $after);
+        
+        $rst = $this->soap()->GetOperationHistorysByYearMonthDayHourMinuteSecond($param);
+        $xml = new SimpleXMLElement($rst->GetOperationHistorysByYearMonthDayHourMinuteSecondResult);
+        foreach ($xml->children() as $xnode) {
+            $attributes = $xnode->attributes();
+            $node = array();
+            foreach ($attributes as $k => $v)
+                $node[$k] = ''.$v;
+            $nodes[] = $node;
+        }
+
+        return $nodes;
+    }  
 }
