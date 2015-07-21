@@ -147,19 +147,14 @@ class auth2 extends crccre_member_base2 {
          * 检查是否为一个已经存在的用户
          * 如果不存在新创建一个注册用户
          */
-        $q = array(
-            'mid',
-            'xxt_member',
-            "mpid='$mpid' and forbidden='N' and ooid='$ooid' and authapi_id='$authid'"
-        );
-        if ($mid = $this->model()->query_val_ss($q)) {
+        if ($member = $this->model('user/member')->byOpenid($mpid, $ooid, '*', $authid)) {
             /**
              * 禁用原有的绑定关系
              */
             $this->model()->update(
                 'xxt_member',
                 array('forbidden'=>'Y'),
-                "mpid='$mpid' and forbidden='N' and ooid='$ooid' and authapi_id='$authid'"
+                "mid='$member->mid'"
             );
         }
         /**
@@ -183,15 +178,6 @@ class auth2 extends crccre_member_base2 {
          */
         $this->setFansGroup($mpid, $ooid, 101);
         /**
-         * 更新关注用户和注册用户之间的关系
-         * 通过OAuth获得的openid
-         */
-        $this->model()->update(
-            'xxt_member', 
-            array('fid'=>$fan->fid), 
-            "mpid='$mpid' and mid='$mid'"
-        );
-        /**
          * get auth settings.
          */
         $attrs = $this->model('user/authapi')->byId($authid, 'attr_mobile,attr_email,attr_name,attr_password,extattr');
@@ -201,7 +187,6 @@ class auth2 extends crccre_member_base2 {
         $member = array(
             'mpid'=>$mpid,
             'fid'=>$fan->fid,
-            'ooid'=>$ooid,
             'authapi_id'=>$authid,
             'authed_identity'=>$username,
             'name'=>$user['title'],

@@ -90,21 +90,11 @@ class crccre_member_base2 extends crccre_member_base {
         if (!($authapi = $this->model('user/authapi')->byUrl($mpid, $authapi, 'authid')))
             return new \ResponseError("authentication's api invalid.");
 
-        $q = array(
-            'authed_identity',
-            'xxt_member',
-            "mpid='$mpid' and forbidden='N' and authapi_id=$authapi->authid and ooid='$openid'"
-        );
-
-        if ($member = $this->model()->query_objs_ss($q)) {
-            if (count($member) === 1) {
-                $member = $member[0];
-                $ret = array(
-                    'userid'=>$member->authed_identity
-                );
-                return new \ResponseData($ret);
-            } else 
-                return new \ResponseError('invalid data');
+        if ($member = $this->model('user/member')->byOpenid($mpid, $openid, 'authed_identity', $authapi->authid)) {
+            $ret = array(
+                'userid'=>$member->authed_identity
+            );
+            return new \ResponseData($ret);
         } else
             return new \ResponseError('not exists');
     }

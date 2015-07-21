@@ -160,19 +160,14 @@ class auth extends crccre_member_base2 {
          * 如果openid已经绑定过一个认证身份，将原有的身份设置为禁用，创建新身份
          * 如果不存在新创建一个注册用户
          */
-        $q = array(
-            'mid',
-            'xxt_member',
-            "mpid='$mpid' and forbidden='N' and ooid='$ooid' and authapi_id='$authid'"
-        );
-        if ($mid = $this->model()->query_val_ss($q)) {
+        if ($member = $this->model('user/member')->byOpenid($mpid, $ooid, '*', $authid)) {
             /**
              * 禁用原有的绑定关系
              */
             $this->model()->update(
                 'xxt_member',
                 array('forbidden'=>'Y'),
-                "mpid='$mpid' and forbidden='N' and ooid='$ooid' and authapi_id='$authid'"
+                "mid='$member->mid'"
             );
         }
         /**
@@ -185,7 +180,6 @@ class auth extends crccre_member_base2 {
         $member = array(
             'mpid'=>$mpid,
             'fid'=>$fan->fid,
-            'ooid'=>$ooid,
             'authapi_id'=>$authid,
             'authed_identity'=>$username,
             'name'=>$user['title'],
