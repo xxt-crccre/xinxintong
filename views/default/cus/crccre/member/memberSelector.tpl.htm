@@ -13,7 +13,7 @@
                     </div>
                     <p class='form-control' style='overflow:hidden' title='{{child.data.title}}' ng-class="{'active':child.data===selectedDept}">{{child.data.title}}</p>
                     <span class="input-group-addon" ng-init="child.data.checked='N'">
-                        <input type='checkbox' ng-true-value='Y' ng-false-value='N' ng-model='child.data.checked' ng-change="checkNode(child.data)">
+                        <input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='child.data.checked' ng-change="checkNode(child.data)">
                     </span>
                 </div>
             </div>
