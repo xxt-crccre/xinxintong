@@ -69,7 +69,13 @@
                     case 'input':
                     case 'radio':
                     case 'checkbox':
-                        title = schema.match(/\btitle=\".*?\"/).pop().replace('title=', '').replace(/\"/g, '');
+                        title = schema.match(/\btitle=\".*?\"/);
+                        try {
+                            title = title.pop().replace('title=', '').replace(/\"/g, '');
+                        } catch (e) {
+                            alert('登记项数据格式错误，请检查');
+                            console.log('eee:' + schema, e);
+                        }
                         if (schema.match(/(<textarea|type=\"text\")/)) {
                             if (modelId = extractModelId(schema))
                                 defs[modelId] = { id: modelId, title: title, type: type };
@@ -187,6 +193,7 @@
                             break;
                         case 'radio':
                         case 'checkbox':
+                        case 'option':
                             html += '<div class="form-group"><label>' + s.title + '</label><p class="form-control-static">{{r.data.' + s.id + '}}</p></div>';
                             break;
                         case 'img':
@@ -470,7 +477,7 @@
                         auth.attr_name[0] === '0' && (authAttrs.push({ id: 'name', label: '姓名' }));
                         auth.attr_mobile[0] === '0' && (authAttrs.push({ id: 'mobile', label: '手机' }));
                         auth.attr_email[0] === '0' && (authAttrs.push({ id: 'email', label: '邮箱' }));
-                        auth.extattr.length && (authAttrs = authAttrs.concat(auth.extattr));
+                        auth.extattr && auth.extattr.length && (authAttrs = authAttrs.concat(auth.extattr));
                         $scope.authAttrs = authAttrs;
                     };
                 }],

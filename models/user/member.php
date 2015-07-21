@@ -96,6 +96,7 @@ class member_model extends TMS_MODEL {
                 $rst = \TMS_APP::M('mpproxy/yx', $mpid)->mobile2Openid($mobile);
                 if ($rst[0] === false)
                     return array(false, "验证手机号失败【{$rst[1]}】");
+                $fan = \TMS_APP::M('user/fans')->byId($fid);
                 if ($fan->openid !== $rst[1]->openid)
                     return array(false, "您输入的手机号与注册易信用户时的提供手机号不一致");
             }
@@ -108,14 +109,14 @@ class member_model extends TMS_MODEL {
         /**
          * 处理访问口令
          */
-        if ($attrs->attr_password[0] === '0') {
+        /*if ($attrs->attr_password[0] === '0') {
             if (empty($member->password) || strlen($member->password) < 6)
                 return array(false, '密码长度不符合要求');
             $salt = $this->gen_salt();
             $cpw = $this->compile_password($member->authed_identity, $member->password, $salt);
             $member->password = $cpw;
             $member->password_salt = $salt;
-        }
+        }*/
 
         $create_at = time();
         $mid = md5(uniqid().$create_at); //member's id
@@ -198,14 +199,14 @@ class member_model extends TMS_MODEL {
         /**
          * 处理访问口令
          */
-        if ($attrs->attr_password[0] === '0') {
+        /*if ($attrs->attr_password[0] === '0') {
             if (empty($member->password) || strlen($member->password) < 6)
                 return array(false, '密码长度不符合要求');
             $salt = $this->gen_salt();
             $cpw = $this->compile_password($member->authed_identity, $member->password, $salt);
             $member->password = $cpw;
             $member->password_salt = $salt;
-        }
+        }*/
         /**
          * 扩展属性
          */
