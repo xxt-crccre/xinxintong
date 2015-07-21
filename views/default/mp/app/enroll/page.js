@@ -109,13 +109,20 @@
             return defs;
         };
         var CusdataCtrl = function ($scope, $modalInstance) {
-            $scope.def = { type: '0', name: '', showname: '1', component: 'R', align: 'V', count: 1 };
+            var key;
+            key = 'c' + (new Date()).getTime();
+            $scope.def = { key: key, type: '0', name: '', showname: '1', component: 'R', align: 'V', count: 1 };
             $scope.addOption = function () {
                 if ($scope.def.ops === undefined)
                     $scope.def.ops = [];
                 var newOp = { text: '' };
                 $scope.def.ops.push(newOp);
                 $timeout(function () { $scope.$broadcast('xxt.editable.add', newOp); });
+            };
+            $scope.addAttr = function () {
+                $scope.def.attrs === undefined && ($scope.def.attrs = []);
+                var newAttr = { name: '', value: '' };
+                $scope.def.attrs.push(newAttr);
             };
             $scope.$on('xxt.editable.remove', function (e, op) {
                 var i = $scope.def.ops.indexOf(op);
@@ -212,18 +219,6 @@
             { value: 'news', title: '多图文', url: '/rest/mp/matter' },
             { value: 'channel', title: '频道', url: '/rest/mp/matter' }
         ];
-        $scope.schema = function () {
-            var i, page, s, s2;
-            s = extractSchema($scope.editing.pages.form.html);
-            for (i in $scope.editing.pages) {
-                page = $scope.editing.pages[i];
-                if (page.type && page.type === 'I') {
-                    s2 = extractSchema(page.html);
-                    s = angular.extend(s, s2);
-                }
-            }
-            return s;
-        };
         $scope.embedInput = function (page) {
             $modal.open({
                 templateUrl: 'embedInputLib.html',
@@ -231,7 +226,7 @@
                 backdrop: 'static',
             }).result.then(function (def) {
                 var key, inpAttrs, html, fn;
-                key = 'c' + (new Date()).getTime();
+                key = def.key;
                 inpAttrs = { wrap: 'input', class: 'form-group' };
                 (def.showname == 1 && def.name && def.name.length) && addWrap(page, 'div', { wrap: 'text', class: 'form-group' }, def.name);
                 switch (def.type) {
@@ -273,6 +268,9 @@
                                     html += ' ng-model="data.' + key + '"';
                                     def.required == 1 && (html += 'required=""');
                                     html += ' title="' + def.name + '"';
+                                    for (var a in def.attrs) {
+                                        html += 'data-' + def.attrs[a].name + '="' + def.attrs[a].value + '"';
+                                    }
                                     html += ' data-label="' + def.ops[i].text + '"><span>' + def.ops[i].text + '</span></label></li>';
                                 }
                                 addWrap(page, 'ul', { class: 'form-group' }, html);
@@ -490,38 +488,47 @@
         };
         $scope.$on('tinymce.wrap.select', function (event, wrap) {
             $scope.$apply(function () {
+                var root = wrap;
+                while (root.parentNode) root = root.parentNode;
+                $(root).find('.active').removeClass('active');
                 $scope.hasActiveWrap = false;
                 if (wrap.hasAttribute('wrap')) {
-                    $(wrap.parentNode).children('.active').removeClass('active');
                     wrap.classList.add('active');
                     $scope.hasActiveWrap = true;
-                } else {
-                    $(wrap).children('.active').removeClass('active');
                 }
             });
         });
+        $scope.editWrap = function (page) {
+        };
         $scope.removeWrap = function (page) {
             var editor;
             editor = tinymce.get(page.name);
-            $(editor.getBody()).children('.active').remove();
+            $(editor.getBody()).find('.active').remove();
             $scope.hasActiveWrap = false;
+            editor.save();
+        };
+        $scope.upWrap = function (page) {
+            var editor, active;
+            editor = tinymce.get(page.name);
+            active = $(editor.getBody()).find('.active');
+            active.prev().before(active);
+            editor.save();
+        };
+        $scope.downWrap = function (page) {
+            var editor, active;
+            editor = tinymce.get(page.name);
+            active = $(editor.getBody()).find('.active');
+            active.next().after(active);
             editor.save();
         };
         $scope.$on('tinymce.multipleimage.open', function (event, callback) {
             $scope.$broadcast('picgallery.open', callback, true, true);
         });
-        $scope.extraPages = function () {
-            if ($scope.editing === undefined) return;
-            var result = {};
-            angular.forEach($scope.editing.pages, function (value, key) {
-                key !== 'form' && (result[key] = value);
-            });
-            return result;
-        };
         $scope.addPage = function () {
             http2.get('/rest/mp/app/enroll/addPage?aid=' + $scope.aid, function (rsp) {
                 var page = rsp.data;
                 $scope.editing.pages[page.name] = page;
+                $scope.extraPages[page.name] = page;
                 $timeout(function () {
                     $('a[href="#tab_' + page.name + '"]').tab('show');
                 });
@@ -582,6 +589,7 @@
             http2.get(url, function (rsp) {
                 tinymce.remove('#' + page.name);
                 delete $scope.editing.pages[page.name];
+                delete $scope.extraPages[page.name];
                 $timeout(function () {
                     $('a[href="#tab_form"]').tab('show');
                 });
@@ -594,5 +602,25 @@
         $scope.gotoCode = function (codeid) {
             window.open('/rest/code?pid=' + codeid, '_self');
         };
+        $scope.$watch('editing', function (nv) {
+            if (!nv) return;
+            /* extra pages */
+            var extraPages = {};
+            angular.forEach($scope.editing.pages, function (value, key) {
+                key !== 'form' && (extraPages[key] = value);
+            });
+            $scope.extraPages = extraPages;
+            /* schema */
+            var i, page, s, s2;
+            s = extractSchema($scope.editing.pages.form.html);
+            for (i in $scope.editing.pages) {
+                page = $scope.editing.pages[i];
+                if (page.type && page.type === 'I') {
+                    s2 = extractSchema(page.html);
+                    s = angular.extend(s, s2);
+                }
+            }
+            $scope.schema = s;
+        });
     }]);
 })();

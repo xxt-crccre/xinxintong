@@ -6,11 +6,23 @@ require_once dirname(__FILE__).'/base.php';
 class yx_model extends mpproxy_base {
     /**
      *
+     */
+    private $yx_token;
+    /**
+     *
      * $mpid
      */
     public function __construct($mpid)
     {
         parent::__construct($mpid);
+    }
+    /**
+     *
+     */
+    public function reset($mpid) 
+    {
+        parent::reset($mpid);
+        unset($this->yx_token);
     }
     /**
      * 加密/校验流程：
@@ -247,7 +259,7 @@ class yx_model extends mpproxy_base {
     {
         $cmd = "https://api.yixin.im/cgi-bin/groups/update";
         $posted = json_encode(array('group'=>$group));
-        $rst = $this->httpPost($posted);
+        $rst = $this->httpPost($cmd, $posted);
 
         return $rst;
     }

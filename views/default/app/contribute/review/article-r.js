@@ -1,29 +1,46 @@
-xxtApp.config(['$routeProvider', function ($routeProvider) {
-    $routeProvider.when('/rest/app/contribute/review/article', {
-        templateUrl: '/views/default/app/contribute/review/edit-r.html',
-        controller: 'editCtrl',
-    }).when('/rest/app/contribute/review/reviewlog', {
-        templateUrl: '/views/default/app/contribute/review/reviewlog.html',
-        controller: 'reviewlogCtrl',
-    });
-}]);
-xxtApp.controller('reviewCtrl', ['$location', '$scope', '$modal', 'http2', 'Article', function ($location, $scope, $modal, http2, Article) {
+xxtApp.controller('reviewCtrl', ['$location', '$scope', '$modal', 'http2', 'Article', 'Entry', 'Reviewlog', function ($location, $scope, $modal, http2, Article, Entry, Reviewlog) {
+    var mpid, id;
+    mpid = $location.search().mpid;
+    id = $location.search().id;
     $scope.phases = { 'I': '投稿', 'R': '审核', 'T': '版面' };
-    $scope.subView = '';
-    $scope.mpid = $location.search().mpid;
     $scope.entry = $location.search().entry;
-    $scope.id = $location.search().id;
-    $scope.Article = new Article('review', $scope.mpid, $scope.entry);
+    $scope.Article = new Article('review', mpid, $scope.entry);
+    $scope.Entry = new Entry(mpid, $scope.entry);
+    $scope.Reviewlog = new Reviewlog('initiate', mpid, { type: 'article', id: id });
     $scope.back = function (event) {
         event.preventDefault();
-        location.href = '/rest/app/contribute/review?mpid=' + $scope.mpid + '&entry=' + $scope.entry;
+        location.href = '/rest/app/contribute/review?mpid=' + mpid + '&entry=' + $scope.entry;
     };
-}]);
-xxtApp.controller('editCtrl', ['$scope', '$modal', 'http2', function ($scope, $modal, http2) {
-    $scope.$parent.subView = 'edit';
-    $scope.refuse = function () {
-
-    };
+    $scope.Article.get(id).then(function (data) {
+        $scope.editing = data;
+        var ele = document.querySelector('#content>iframe');
+        if (ele.contentDocument && ele.contentDocument.body)
+            ele.contentDocument.body.innerHTML = data.body;
+        $scope.Article.mpaccounts().then(function (data) {
+            var target_mps2 = [];
+            if ($scope.editing.target_mps.indexOf('[') === 0) {
+                var mps = JSON.parse($scope.editing.target_mps);
+                angular.forEach(data, function (mpa) {
+                    mps.indexOf(mpa.id) !== -1 && target_mps2.push(mpa.name);
+                });
+                $scope.targetMps = target_mps2.join(',');
+            }
+        });
+    }).then(function () {
+        $scope.Entry.get().then(function (data) {
+            var i, j, ch, mapSubChannels = {};
+            $scope.editing.subChannels = [];
+            $scope.entryApp = data;
+            for (i = 0, j = data.subChannels.length; i < j; i++) {
+                ch = data.subChannels[i];
+                mapSubChannels[ch.id] = ch;
+            }
+            for (i = 0, j = $scope.editing.channels.length; i < j; i++) {
+                ch = $scope.editing.channels[i];
+                mapSubChannels[ch.id] && $scope.editing.subChannels.push(ch);
+            }
+        });
+    });
     $scope.return = function () {
         $modal.open({
             templateUrl: 'replyBox.html',
@@ -39,14 +56,17 @@ xxtApp.controller('editCtrl', ['$scope', '$modal', 'http2', function ($scope, $m
             backdrop: 'static',
         }).result.then(function (data) {
             $scope.Article.return($scope.editing, data.message).then(function () {
-                location.href = '/rest/app/contribute/review?mpid=' + $scope.mpid + '&entry=' + $scope.editing.entry;
+                location.href = '/rest/app/contribute/review?mpid=' + mpid + '&entry=' + $scope.editing.entry;
             });
         });
     };
     $scope.pass = function () {
         $scope.Article.pass($scope.editing).then(function () {
-            location.href = '/rest/app/contribute/review?mpid=' + $scope.mpid + '&entry=' + $scope.editing.entry;
+            location.href = '/rest/app/contribute/review?mpid=' + mpid + '&entry=' + $scope.editing.entry;
         });
+    };
+    $scope.refuse = function () {
+
     };
     $scope.publish = function () {
         $modal.open({
@@ -70,7 +90,7 @@ xxtApp.controller('editCtrl', ['$scope', '$modal', 'http2', function ($scope, $m
                 });
             },
             resolve: {
-                mpid: function () { return $scope.mpid; }
+                mpid: function () { return mpid; }
             },
             backdrop: 'static',
             size: 'lg',
@@ -78,7 +98,7 @@ xxtApp.controller('editCtrl', ['$scope', '$modal', 'http2', function ($scope, $m
         }).result.then(function (selectedMps) {
             if (selectedMps && selectedMps.length) {
                 var data = {
-                    id: $scope.id,
+                    id: id,
                     type: 'article',
                 };
                 var i = 0, mps = [];
@@ -92,29 +112,9 @@ xxtApp.controller('editCtrl', ['$scope', '$modal', 'http2', function ($scope, $m
             }
         });
     };
-    $scope.Article.get($scope.id).then(function (data) {
-        $scope.editing = data;
-        var ele = document.querySelector('#content');
-        if (ele.contentDocument && ele.contentDocument.body)
-            ele.contentDocument.body.innerHTML = data.body;
-        $scope.Article.mpaccounts().then(function (data) {
-            var target_mps2 = [];
-            if ($scope.editing.target_mps.indexOf('[') === 0) {
-                var mps = JSON.parse($scope.editing.target_mps);
-                angular.forEach(data, function (mpa) {
-                    mps.indexOf(mpa.id) !== -1 && target_mps2.push(mpa.name);
-                });
-                $scope.targetMps = target_mps2.join(',');
-            }
-        });
-    });
-    http2.get('/rest/mp/matter/tag?resType=article', function (rsp) {
-        $scope.tags = rsp.data;
-    });
-}]);
-xxtApp.controller('reviewlogCtrl', ['$scope', '$modal', 'http2', 'Reviewlog', function ($scope, $modal, http2, Reviewlog) {
-    $scope.$parent.subView = 'reviewlog';
-    $scope.Reviewlog = new Reviewlog('initiate', $scope.mpid, { type: 'article', id: $scope.id });
+    $scope.preview = function () {
+        location.href = '/views/default/article2.html?mode=preview&mpid=' + mpid + '&id=' + id;
+    };
     $scope.Reviewlog.list().then(function (data) {
         $scope.logs = data;
     });

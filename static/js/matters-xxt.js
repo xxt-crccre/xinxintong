@@ -114,9 +114,9 @@ xxtMatters.directive('tinymce', function ($timeout) {
                             var wrap;
                             wrap = e.target;
                             if (wrap.tagName !== 'HTML') {
-                                if (wrap !== editor.getBody()) {
+                                if (!wrap.hasAttribute('wrap') && wrap !== editor.getBody()) {
                                     while (wrap.parentNode !== editor.getBody()) {
-                                        if (wrap.parentNode === null) break;
+                                        if (wrap.hasAttribute('wrap') || wrap.parentNode === null) break;
                                         wrap = wrap.parentNode;
                                     }
                                 }
@@ -254,6 +254,11 @@ xxtMatters.directive('tinymce', function ($timeout) {
                     }
                 });
             }, 1);
+            scope.$watch('content', function (nv) {
+                if (nv && nv.length && scope.initialized) {
+                    tinymce.get(scope.id).setContent(nv);
+                }
+            });
             scope.$on('$destroy', function () {
                 var tinyInstance;
                 if (tinyInstance = tinymce.get(scope.id)) {
@@ -294,7 +299,7 @@ xxtMatters.controller('MattersGalleryModalInstCtrl', ['$scope', '$http', '$modal
         url += '/get?page=' + $scope.page.current + '&size=' + $scope.page.size + '&fields=' + fields;
         $scope.p.fromParent && $scope.p.fromParent == 1 && (params.src = 'p');
         $http.post(url, params, { headers: { 'ACCEPT': 'application/json' } }).success(function (rsp) {
-            if (/article|contribute|enroll/.test($scope.p.matterType.value)) {
+            if (/article|contribute/.test($scope.p.matterType.value)) {
                 $scope.matters = rsp.data[0];
                 rsp.data[1] && ($scope.page.total = rsp.data[1]);
             } else {
@@ -516,7 +521,7 @@ xxtMatters.directive('accesscontrol', function () {
         restrict: 'EA',
         scope: { title: '@', label: '@', mpid: '@', obj: '=', propAcl: '@', labelOfList: '@', propAccess: '@', propApis: '@', changeAclUrl: '@', removeAclUrl: '@', updateAccessControl: '&', updateAuthapis: '&', labelSpan: '@', controlSpan: '@', disabled: '@', hideAccessControl: '@' },
         controller: 'AccessControlController',
-        templateUrl: '/static/template/accesscontrol.html?_=5',
+        templateUrl: '/static/template/accesscontrol.html?_=6',
     }
 });
 xxtMatters.directive('userpopover', ['http2', function (http2) {

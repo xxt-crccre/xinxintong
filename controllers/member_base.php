@@ -65,7 +65,7 @@ class member_base extends xxt_base {
     {
         if (empty($aAuthapis)) {
             $authapis = $this->model('user/authapi')->byMpid($mpid, 'Y', 'N');
-            if ($empty($authapis)) return false;
+            if (empty($authapis)) return false;
             foreach ($authapis as $k => $v) $aAuthapis[] = $v->authid;
         } else if (is_string($aAuthapis)) {
             $aAuthapis = explode(',', $aAuthapis);
@@ -86,6 +86,58 @@ class member_base extends xxt_base {
         }
         
         return $members;
+    }
+    /**
+     * 获得当前访问用户的信息
+     *
+     * $mpid
+     * $act
+     * $openid
+     * $matter
+     * $checkAccessControl
+     */
+    protected function &getUser($mpid, $sAuthapis = null, $openid = '', $matter = null)
+    {
+        /**
+         * 当前用户在cookie中的记录
+         */
+        empty($openid) && $openid = $this->getCookieOAuthUser($mpid);
+        /**
+         * 所有用户认证信息
+         */
+        $members = $this->getMembersByMpid($mpid, $sAuthapis, $openid);
+        /**
+         * 限定的用户认证身份
+         */
+        if ($matter && isset($matter->access_control) && $matter->access_control === 'Y') {
+            $membersInAcl = array();
+            foreach ($members as $member) {
+                if ($this->canAccessObj($mpid, $matter->id, $member, $sAuthapis, $matter)) {
+                    $membersInAcl[] = $member;
+                }
+            }
+        }
+        /**
+         * 关注用户信息
+         */
+        if (empty($openid) && !empty($members)) {
+            $fan = $this->model('user/fans')->byMid($members[0]->mid, '*'); 
+            $openid = $fan->openid;
+        } else if (!empty($openid))
+            $fan = $this->model('user/fans')->byOpenid($mpid, $openid);
+        else
+            $fan = null;
+        
+        $vid = $this->getVisitorId($mpid);
+
+        $user = new \stdClass;
+        $user->vid = $vid;
+        $user->openid = $openid;
+        $user->fan = $fan;
+        $user->members = $members;
+        isset($membersInAcl) && $user->membersInAcl = $membersInAcl;
+
+        return $user;
     }
     /**
      * 跳转到用户认证页
