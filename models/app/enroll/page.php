@@ -81,10 +81,9 @@ class page_model extends \TMS_MODEL {
                         $defs[] = array('title'=>$title,'id'=>$id,'ops'=>array());
                         $d = &$defs[count($defs)-1];
                     }
+                    $op = array();
                     if (preg_match('/value="(.+?)"/', $inp, $opval))
                         $op['v'] = $opval[1];
-                    //if (preg_match('/data-label="(.+?)"/', $wrap, $optit)) 
-                    //    $op['l'] = $optit[1];
                     if (preg_match_all('/data-(.+?)="(.+?)"/', $wrap, $opAttrs)) {
                         for ($i = 0, $l = count($opAttrs[0]); $i < $l; $i++) {
                             $op[$opAttrs[1][$i]] = $opAttrs[2][$i];
@@ -109,16 +108,20 @@ class page_model extends \TMS_MODEL {
                         $defs[] = array('title'=>$title,'id'=>$id,'ops'=>array());
                         $d = &$defs[count($defs)-1];
                     }
+                    $op = array();
                     if (preg_match('/value="(.+?)"/', $inp, $opval))
                         $op['v'] = $opval[1];
-                    if (preg_match('/data-label="(.+?)"/', $wrap, $optit)) 
-                        $op['l'] = $optit[1];
+                    if (preg_match_all('/data-(.+?)="(.+?)"/', $wrap, $opAttrs)) {
+                        for ($i = 0, $l = count($opAttrs[0]); $i < $l; $i++) {
+                            $op[$opAttrs[1][$i]] = $opAttrs[2][$i];
+                        }
+                    }
                     $d['ops'][] = $op;
                 } else if (preg_match('/type="checkbox"/', $inp)) {
                     /**
                      * for checkbox group.
                      */
-                    if (preg_match('/ng-model="data\.(.+?)\.(\d+?)"/', $inp, $ngmodel)) {
+                    if (preg_match('/ng-model="data\.(.+?)\.(.+?)"/', $inp, $ngmodel)) {
                         $id = $ngmodel[1];
                         $opval = $ngmodel[2];
                     }
@@ -134,9 +137,13 @@ class page_model extends \TMS_MODEL {
                         $defs[] = array('title'=>$title,'id'=>$id,'ops'=>array());
                         $d = &$defs[count($defs)-1];
                     }
+                    $op = array();
                     $op['v'] = $opval;
-                    if (preg_match('/data-label="(.+?)"/', $wrap, $optit)) 
-                        $op['l'] = $optit[1];
+                    if (preg_match_all('/data-(.+?)="(.+?)"/', $wrap, $opAttrs)) {
+                        for ($i = 0, $l = count($opAttrs[0]); $i < $l; $i++) {
+                            $op[$opAttrs[1][$i]] = $opAttrs[2][$i];
+                        }
+                    }
                     $d['ops'][] = $op;
                 } else if (preg_match('/ng-repeat="img in data\.(.+?)"/', $inp, $ngrepeat)) {
                     $id = $ngrepeat[1];

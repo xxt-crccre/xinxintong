@@ -104,7 +104,7 @@ xxtMatters.directive('tinymce', function ($timeout) {
                     statusbar: false,
                     plugins: ['textcolor code table paste fullscreen visualblocks'],
                     toolbar: 'fontsizeselect styleselect forecolor backcolor bullist numlist outdent indent table multipleimage fullscreen visualblocks code',
-                    content_css: '/static/css/bootstrap.min.css,/static/css/tinymce.css?v=3',
+                    content_css: '/static/css/bootstrap.min.css,/static/css/tinymce.css?v=5',
                     forced_root_block: 'p',
                     height: scope.height ? scope.height : 300,
                     valid_elements: "*[*]",
@@ -246,17 +246,21 @@ xxtMatters.directive('tinymce', function ($timeout) {
                     },
                     init_instance_callback: function () {
                         scope.initialized = true;
-                        if (scope.content !== undefined)
+                        if (scope.content !== undefined) {
                             tinymce.get(scope.id).setContent(scope.content);
+                            scope.setContentDone = true;
+                        }
                         if (scope.contenteditable !== undefined)
                             $(tinymce.activeEditor.getBody()).attr('contenteditable', scope.contenteditable);
                         scope.$emit('tinymce.instance.init');
                     }
                 });
             }, 1);
+            scope.setContentDone = false;
             scope.$watch('content', function (nv) {
-                if (nv && nv.length && scope.initialized) {
+                if (!scope.setContentDone && nv && nv.length && scope.initialized) {
                     tinymce.get(scope.id).setContent(nv);
+                    scope.setContentDone = true;
                 }
             });
             scope.$on('$destroy', function () {
