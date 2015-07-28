@@ -1,4 +1,11 @@
-xxtApp.controller('contributeCtrl', ['$scope', 'http2', function ($scope, http2) {
+xxtApp.config(['$routeProvider', function ($rp) {
+    $rp.when('/rest/mp/app/contribute', {
+        templateUrl: '/views/default/mp/app/contribute/setting.html',
+    });
+}]);
+xxtApp.controller('contributeCtrl', ['$location', '$scope', 'http2', function ($location, $scope, http2) {
+    var id;
+    id = $location.search().id;
     $scope.taskCodeEntryUrl = 'http://' + location.host + '/rest/q';
     $scope.update = function (name) {
         var nv = {};
@@ -40,9 +47,10 @@ xxtApp.controller('contributeCtrl', ['$scope', 'http2', function ($scope, http2)
             var params, entryUrl, ch, mapChannels = {};
             params = JSON.parse(decodeURIComponent(nv.replace(/\+/g, '%20')));
             console.log('ready', params);
-            $scope.mpid = params.mpid;
             entryUrl = 'http://' + location.hostname + '/rest/app/contribute';
             entryUrl += '?mpid=' + params.mpid;
+            entryUrl += '&entry=contribute,' + params.app.id;
+            $scope.mpid = params.mpid;
             $scope.entryUrl = entryUrl;
             $scope.editing = params.app;
             $scope.editing.canSetInitiator = 'Y';

@@ -70,14 +70,14 @@ class acl_model extends TMS_MODEL {
                 $tagIds = explode(',', $acl->identity);
                 foreach ($tagIds as $tagId) {
                     $q = array(
-                        'ooid',
+                        'openid',
                         'xxt_member',
                         "mpid='$mpid' and concat(',',tags,',') like '%,$tagId,%'"
                     );
                     if ($members = $this->query_objs_ss($q)) {
                         foreach ($members as $m) {
-                            if (!in_array($m->ooid, $users))
-                                $users[] = $m->ooid;
+                            if (!in_array($m->openid, $users))
+                                $users[] = $m->openid;
                         }
                     }
                 }
@@ -154,14 +154,14 @@ class acl_model extends TMS_MODEL {
                 $tagIds = explode(',', $acl->identity);
                 foreach ($tagIds as $tagId) {
                     $q = array(
-                        'ooid',
+                        'openid',
                         'xxt_member',
                         "mpid='$mpid' and concat(',',tags,',') like '%,$tagId,%'"
                     );
                     if ($members = $this->query_objs_ss($q)) {
                         foreach ($members as $m) {
-                            if (!in_array($m->ooid, $users))
-                                $users[] = $m->ooid;
+                            if (!in_array($m->openid, $users))
+                                $users[] = $m->openid;
                         }
                     }
                 }
@@ -205,8 +205,8 @@ class acl_model extends TMS_MODEL {
             foreach ($acls as $acl) {
                 $q = array(
                     'openid',
-                    'xxt_member m,xxt_fans f',
-                    "m.mpid='$mpid' and m.mid='$acl->identity' and m.fid=f.fid"
+                    'xxt_member m',
+                    "m.mpid='$mpid' and m.mid='$acl->identity'"
                 );
                 if ($openid = $this->query_val_ss($q)) {
                     if (!in_array($openid, $users))
@@ -423,10 +423,10 @@ class acl_model extends TMS_MODEL {
         $q = array(
             'identity,idsrc',
             $table,
-            "$whichAcl and idsrc<>''"
+            "$whichAcl"
         );
         $acls = $this->query_objs_ss($q);
-        if ($this->checkAclByAuthapi($mpid, $authapis, $acls, $identity))
+        if (true === $this->checkAclByAuthapi($mpid, $authapis, $acls, $identity))
             return true;
 
         return false;
@@ -445,7 +445,8 @@ class acl_model extends TMS_MODEL {
                 "authid=$authid and valid='Y'"
             );
             if ($url = $this->query_val_ss($q)) {
-                $url = 'http://'.$_SERVER['HTTP_HOST'].$url."/checkAcl?authid=$authid&uid=$identity";
+                false === strpos($url, 'http') && $url = 'http://' . $_SERVER['HTTP_HOST'] . $url;
+                $url .= "/checkAcl?authid=$authid&uid=$identity";
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_HEADER, 0);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -457,10 +458,10 @@ class acl_model extends TMS_MODEL {
                     return array(false, $err);
                 }
                 curl_close($ch);
-
                 $rst = json_decode($response);
-                if ($rst->err_code == 0 && $rst->data === 'passed')
+                if ($rst->err_code == 0 && $rst->data === 'passed') {
                     return true;
+                }
             }
         }
         return false;
