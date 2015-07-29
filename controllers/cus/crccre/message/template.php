@@ -145,7 +145,7 @@ class template extends \xxt_base {
             $mpsrc = strpos($url2, '?') ? '&' : '?';
             $mpsrc .= 'mpsrc=qy'; 
             $url2 = $url2.$mpsrc;
-            $content .= " <a href='$url2'>".urlencode('详情')."</a>";
+            $content .= " <a href='$url2'>".urlencode('点击查看详情')."</a>";
         }
         $message = array(
             "msgtype"=>"text",
