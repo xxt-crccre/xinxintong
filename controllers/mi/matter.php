@@ -283,11 +283,25 @@ class matter extends \member_base {
      */
     public function logShare_action($shareid, $mpid, $id, $type, $title, $shareto, $shareby='')
     {
+        switch ($type) {
+            case 'article':
+            $table = 'xxt_article';
+            break;
+            $table = 'xxt_enroll';
+            break;
+        }
+        if (isset($table)) {
+            if ($shareto === 'F')
+                $this->model()->update("update $table set share_friend_num=share_friend_num+1 where id='$id'");
+            else if ($shareto === 'T')
+                $this->model()->update("update $table set share_timeline_num=share_timeline_num+1 where id='$id'");
+        }
+        
         $vid = $this->getVisitorId($mpid);
         $ooid = $this->getCookieOAuthUser($mpid);
         $openid_agent = $_SERVER['HTTP_USER_AGENT'];
         $client_ip = $this->client_ip();
-
+        
         $this->model('log')->writeShareActionLog(
             $shareid, $vid, $ooid, $shareto, $shareby, $mpid, $id, $type, $title, $openid_agent, $client_ip);
 
@@ -349,13 +363,17 @@ class matter extends \member_base {
         );
         $att = $this->model()->query_obj_ss($q);
         
-        $fs = $this->model('fs/attachment', $mpid);
-        
-        //header("Content-Type: application/force-download");
-        header("Content-Type: $att->type");
-        header("Content-Disposition: attachment; filename=".$att->name);
-        header('Content-Length: '.$att->size);
-        echo $fs->read($att->url);
+        if (strpos($att->url, 'alioss') === 0) {
+            $downloadUrl = 'http://xxt-attachment.oss-cn-shanghai.aliyuncs.com/'.$mpid.'/article/'.$articleid.'/'.$att->name;
+            $this->redirect($downloadUrl);
+        } else {
+            $fs = $this->model('fs/saestore', $mpid);
+            //header("Content-Type: application/force-download");
+            header("Content-Type: $att->type");
+            header("Content-Disposition: attachment; filename=".$att->name);
+            header('Content-Length: '.$att->size);
+            echo $fs->read($att->url);
+        }
         
         exit;
     }

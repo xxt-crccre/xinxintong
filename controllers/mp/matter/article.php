@@ -146,7 +146,7 @@ class resumable {
         }
     }
 }
-class resumableSae {
+class resumableAliOss {
     
     private $mpid;
     
@@ -181,7 +181,7 @@ class resumableSae {
      */
     private function createFileFromChunks($temp_dir, $articleid, $fileName, $chunkSize, $totalSize) 
     {
-        $fs = \TMS_APP::M('fs/attachment', $this->mpid);
+        $fs = \TMS_APP::M('fs/saestore', $this->mpid);
         // count all the parts of this file
         $total_files = 0;
         $rst = $fs->getListByPath($temp_dir);
@@ -193,15 +193,29 @@ class resumableSae {
         // check that all the parts are present
         // the size of the last part is between chunkSize and 2*$chunkSize
         if ($total_files * $chunkSize >=  ($totalSize - $chunkSize + 1)) {
-            // create the final destination file 
-            $dest = 'article_'.$articleid.'_'.$fileName;
+            
+            $fs2 = \TMS_APP::M('fs/alioss', $this->mpid, 'xxt-attachment');
+            $object = $this->mpid . '/article/' . $articleid . '/' . $_POST['resumableFilename'];
+            // uploadId
+            $upload = $fs2->initiate_multipart_upload($object);
+            if ($upload[0] === false) {
+                throw new \Exception($upload[1]);
+            }
+            $uploadId = $upload[1];
+            
+            $responseUploadPart = array();
+            // create the final destination file
             $content = '';
             for ($i=1; $i<=$total_files; $i++) {
                 $content .= $fs->read($temp_dir.'/'.$fileName.'.part'.$i);
                 $fs->delete($temp_dir.'/'.$fileName.'.part'.$i);
-                $this->_log('writing chunk '.$i);
             }
-            $fs->write($dest, $content);
+            $tmpfname = tempnam(sys_get_temp_dir(), 'xxt');
+            $handle = fopen($tmpfname, "w");
+            fwrite($handle, $content);
+            fclose($handle);
+            
+            $rsp = $fs2->create_mpu_object($object, $tmpfname);
         }
     }
     /**
@@ -231,7 +245,7 @@ class resumableSae {
             $temp_dir = $_POST['resumableIdentifier'];
             $dest_file = $temp_dir.'/'.$_POST['resumableFilename'].'.part'.$_POST['resumableChunkNumber'];
             // move the temporary file
-            $fs = \TMS_APP::M('fs/attachment', $this->mpid);
+            $fs = \TMS_APP::M('fs/saestore', $this->mpid);
             if (!$fs->upload($dest_file, $file['tmp_name'])) {
                 $this->_log('Error saving (move_uploaded_file) chunk '.$_POST['resumableChunkNumber'].' for file '.$_POST['resumableFilename']);
             } else {
@@ -306,7 +320,7 @@ class article extends matter_ctrl {
             /**
              * select fields
              */
-            $s = "a.id,a.mpid,a.title,a.summary,a.custom_body,a.create_at,a.modify_at,a.approved,a.creater,a.creater_name,a.creater_src,'$uid' uid";
+            $s = "a.id,a.mpid,a.title,a.summary,a.custom_body,a.create_at,a.modify_at,a.approved,a.creater,a.creater_name,a.creater_src,'$uid' uid,a.read_num,a.score,a.remark_num";
             /**
              * where
              */
@@ -330,16 +344,29 @@ class article extends matter_ctrl {
             /**
              * 按标签过滤
              */
+            !isset($options->order) && $options->order = '';
             if (empty($options->tag)) {
                 $q = array(
                     $s, 
                     'xxt_article a', 
                     $w
                 );
-                if (!empty($options->order) && $options->order === 'title')
-                    $q2['o'] = 'CONVERT(a.title USING gbk ) COLLATE gbk_chinese_ci';
-                else 
-                    $q2['o'] = 'a.modify_at desc';
+                switch ($options->order) {
+                    case 'title':
+                        $q2['o'] = 'CONVERT(a.title USING gbk ) COLLATE gbk_chinese_ci';
+                        break;
+                    case 'read':
+                        $q2['o'] = 'a.read_num desc';
+                        break;
+                    case 'score':
+                        $q2['o'] = 'a.score desc';
+                        break;
+                    case 'remark':
+                        $q2['o'] = 'a.remark_num desc';
+                        break;
+                    default:
+                        $q2['o'] = 'a.modify_at desc';
+                }
             } else {
                 /**
                  * 按标签过滤
@@ -352,10 +379,22 @@ class article extends matter_ctrl {
                     $w
                 );
                 $q2['g'] = 'a.id';
-                if ($options->order === 'title')
-                    $q2['o'] = 'count(*),CONVERT(a.title USING gbk ) COLLATE gbk_chinese_ci';
-                else 
-                    $q2['o'] = 'count(*) desc,a.modify_at desc';
+                switch ($options->order) {
+                    case 'title':
+                        $q2['o'] = 'count(*),CONVERT(a.title USING gbk ) COLLATE gbk_chinese_ci';
+                        break;
+                    case 'read':
+                        $q2['o'] = 'a.read_num desc';
+                        break;
+                    case 'score':
+                        $q2['o'] = 'a.score desc';
+                        break;
+                    case 'remark':
+                        $q2['o'] = 'a.remark_num desc';
+                        break;
+                    default:
+                        $q2['o'] = 'a.modify_at desc';
+                }
             }
             /**
              * limit
@@ -464,25 +503,6 @@ class article extends matter_ctrl {
         return new \ResponseData($rst);
     }
     /**
-     * 图文的统计数据
-     */
-    public function statGet_action($id)
-    {
-        $model = $this->model('matter\article');
-        $article = $model->byId($id);
-        /**
-         * 阅读次数
-         */
-        $stat['readNum'] = $model->readNum($id);
-        /**
-         * 赞的数量
-         */
-        $stat['score'] = $article->score;
-        $stat['remark_num'] = $article->remark_num;
-
-        return new \ResponseData($stat);
-    }
-    /**
      * 创建新图文
      */
     public function create_action()
@@ -579,7 +599,7 @@ class article extends matter_ctrl {
     public function upload_action($articleid)
     {
         if (defined('SAE_TMP_PATH'))
-            $resumable = new resumableSae($this->mpid);
+            $resumable = new resumableAliOss($this->mpid);
         else
             $resumable = new resumable($this->mpid);
             
@@ -587,7 +607,7 @@ class article extends matter_ctrl {
         exit;
     }
     /**
-     * 添加附件
+     * 上传成功后添加附件
      */
     public function attachmentAdd_action($id)
     {
@@ -595,7 +615,10 @@ class article extends matter_ctrl {
         /**
          * store to sae
          */
-        $url = 'article_'.$id.'_'.$file->name;
+        if (defined('SAE_TMP_PATH'))
+            $url = 'alioss://article/' . $id . '/' . $file->name;
+        else
+            $url = 'article_' . $id . '_' . $file->name;
         /**
          * store to local
          */
@@ -622,12 +645,18 @@ class article extends matter_ctrl {
      */
     public function attachmentDel_action($id)
     {
-        $att = $this->model()->query_obj_ss(array('url','xxt_article_attachment', "id='$id'"));
+        $att = $this->model()->query_obj_ss(array('name,url','xxt_article_attachment', "id='$id'"));
         /**
          * remove from fs
          */
-        $fs = $this->model('fs/attachment', $this->mpid);
-        $fs->delete($att->url);
+        if (strpos($att->url, 'alioss') === 0) {
+            $fs = $this->model('fs/alioss', $this->mpid, 'xxt-attachment');
+            $object = $this->mpid.'/article/'.$id.'/'.$att->name;
+            $fs->delete_object($object);
+        } else {
+            $fs = $this->model('fs/saestore', $this->mpid);
+            $fs->delete($att->url);
+        }
         /**
          * remove from local
          */
