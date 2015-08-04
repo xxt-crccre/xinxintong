@@ -85,7 +85,9 @@ if (!$mysqli->query($sql)) {
 $sql = "create table if not exists xxt_article_remark(";
 $sql .= 'id int not null auto_increment';
 $sql .= ',article_id int not null';
+$sql .= ',fid varchar(32) not null';
 $sql .= ',openid varchar(255) not null';
+$sql .= ',nickname varchar(255) not null';
 $sql .= ',create_at int not null';
 $sql .= ',remark text';
 $sql .= ",primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8";
@@ -212,6 +214,8 @@ $sql .= 'id int not null auto_increment';
 $sql .= ',mpid varchar(32) not null';
 $sql .= ',creater varchar(40) not null';
 $sql .= ',create_at int not null';
+$sql .= ",creater_name varchar(255) not null default ''"; //from account or fans
+$sql .= ",creater_src char(1) not null default 'A'"; //A:accouont|F:fans|M:member
 $sql .= ",public_visible char(1) not null default 'N'";
 $sql .= ',state tinyint not null default 1'; //0:stop,1:normal
 $sql .= ',title varchar(70) not null';
@@ -220,6 +224,9 @@ $sql .= ",authapis text";
 $sql .= ",filter_by_matter_acl char(1) not null default 'Y'"; // 根据素材的访问控制进行过滤
 $sql .= ',empty_reply_type varchar(20) not null';
 $sql .= ',empty_reply_id varchar(40) not null';
+$sql .= ",read_num int not null default 0"; // 阅读数
+$sql .= ",share_friend_num int not null default 0"; // 分享给好友数
+$sql .= ",share_timeline_num int not null default 0"; // 分享朋友圈数
 $sql .= ",primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8";
 if (!$mysqli->query($sql)) {
     header('HTTP/1.0 500 Internal Server Error');
@@ -267,6 +274,8 @@ $sql .= 'id int not null auto_increment';
 $sql .= ',mpid varchar(32) not null';
 $sql .= ',creater varchar(40) not null';
 $sql .= ',create_at int not null';
+$sql .= ",creater_name varchar(255) not null default ''"; //from account or fans
+$sql .= ",creater_src char(1) not null default 'A'"; //A:accouont|F:fans|M:member
 $sql .= ",public_visible char(1) not null default 'N'";
 $sql .= ',state tinyint not null default 1'; //0:stop,1:normal
 $sql .= ',title varchar(70) not null';
@@ -281,6 +290,9 @@ $sql .= ",access_control char(1) not null default 'N'";
 $sql .= ",authapis text";
 $sql .= ",filter_by_matter_acl char(1) not null default 'Y'"; // 根据素材的访问控制进行过滤
 $sql .= ",show_pic_in_page char(1) not null default 'Y'"; // 是否在页面中显示头图
+$sql .= ",read_num int not null default 0"; // 阅读数
+$sql .= ",share_friend_num int not null default 0"; // 分享给好友数
+$sql .= ",share_timeline_num int not null default 0"; // 分享朋友圈数
 $sql .= ",primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8";
 if (!$mysqli->query($sql)) {
     header('HTTP/1.0 500 Internal Server Error');

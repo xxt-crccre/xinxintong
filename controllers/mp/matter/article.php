@@ -272,20 +272,23 @@ class article extends matter_ctrl {
     public function edit_action() 
     {
        $this->view_action('/mp/matter/article');
-    }/**
-     * 返回单图文视图
+    }
+    /**
+     * 
      */
     public function read_action() 
     {
        $this->view_action('/mp/matter/article');
-    }/**
-     * 返回单图文视图
+    }
+    /**
+     * 
      */
     public function stat_action() 
     {
        $this->view_action('/mp/matter/article');
-    }/**
-     * 返回单图文视图
+    }
+    /**
+     * 
      */
     public function remark_action() 
     {
@@ -320,7 +323,8 @@ class article extends matter_ctrl {
             /**
              * select fields
              */
-            $s = "a.id,a.mpid,a.title,a.summary,a.custom_body,a.create_at,a.modify_at,a.approved,a.creater,a.creater_name,a.creater_src,'$uid' uid,a.read_num,a.score,a.remark_num";
+            $s = "a.id,a.mpid,a.title,a.summary,a.custom_body,a.create_at,a.modify_at,a.approved,a.creater,a.creater_name,a.creater_src,'$uid' uid";
+            $s .= ",a.read_num,a.score,a.remark_num,a.share_friend_num,a.share_timeline_num";
             /**
              * where
              */
@@ -358,11 +362,11 @@ class article extends matter_ctrl {
                     case 'read':
                         $q2['o'] = 'a.read_num desc';
                         break;
-                    case 'score':
-                        $q2['o'] = 'a.score desc';
+                    case 'share_friend':
+                        $q2['o'] = 'a.share_friend_num desc';
                         break;
-                    case 'remark':
-                        $q2['o'] = 'a.remark_num desc';
+                    case 'share_timeline':
+                        $q2['o'] = 'a.share_timeline_num desc';
                         break;
                     default:
                         $q2['o'] = 'a.modify_at desc';
@@ -459,17 +463,6 @@ class article extends matter_ctrl {
         return $article;
     }
     /**
-     * 图文的阅读情况
-     */
-    public function readGet_action($id)
-    {
-        $model = $this->model('matter\article');
-
-        $reads = $model->readLog($id);
-
-        return new \ResponseData($reads);
-    }
-    /**
      * 获得指定文章的所有评论
      *
      * $id article's id
@@ -487,7 +480,7 @@ class article extends matter_ctrl {
     /**
      *
      */
-    public function delRemark_action($id)
+    public function remarkDel_action($id)
     {
         $rst = $this->model()->delete('xxt_article_remark', "id=$id");
         
@@ -496,7 +489,7 @@ class article extends matter_ctrl {
     /**
      *
      */
-    public function cleanRemark_action($articleid)
+    public function remarkClean_action($articleid)
     {
         $rst = $this->model()->delete('xxt_article_remark', "article_id=$articleid");
         
@@ -507,15 +500,19 @@ class article extends matter_ctrl {
      */
     public function create_action()
     {
+        $account = \TMS_CLIENT::account();
+        if ($account === false)
+            return new \ResponseError('长时间未操作，请重新登陆！');
+        
         $current = time();
         $d['mpid'] = $this->mpid;
         $d['creater'] = \TMS_CLIENT::get_client_uid();
         $d['creater_src'] = 'A';
-        $d['creater_name'] = \TMS_CLIENT::account()->nickname;
+        $d['creater_name'] = $account->nickname;
         $d['create_at'] = $current;
         $d['modifier'] = \TMS_CLIENT::get_client_uid();
         $d['modifier_src'] = 'A';
-        $d['modifier_name'] = \TMS_CLIENT::account()->nickname;
+        $d['modifier_name'] = $account->nickname;
         $d['modify_at'] = $current;
         $d['title'] = '新单图文';
         $d['author'] = $d['creater_name'];
@@ -538,6 +535,10 @@ class article extends matter_ctrl {
      */
     public function update_action($id) 
     {
+        $account = \TMS_CLIENT::account();
+        if ($account === false)
+            return new \ResponseError('长时间未操作，请重新登陆！');
+            
         $pmpid = $this->getParentMpid();
 
         $nv = (array)$this->getPostJson();
@@ -546,7 +547,7 @@ class article extends matter_ctrl {
 
         $nv['modifier'] = \TMS_CLIENT::get_client_uid();
         $nv['modifier_src'] = 'A';
-        $nv['modifier_name'] = \TMS_CLIENT::account()->nickname;
+        $nv['modifier_name'] = $account->nickname;
         $nv['modify_at'] = time();
 
         $rst = $this->model()->update(

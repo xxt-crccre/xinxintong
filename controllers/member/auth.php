@@ -69,7 +69,7 @@ class auth extends \member_base {
         /**
          * 页面背景设置
          */
-        $mpsetting = $this->getCommonSetting($mpid);
+        $mpsetting = $this->getMpSetting($mpid);
         \TPL::assign('body_ele', $mpsetting->body_ele);
         \TPL::assign('body_css', $mpsetting->body_css);
         /**
@@ -416,7 +416,6 @@ class auth extends \member_base {
         $members = $this->model()->query_objs_ss($q);
         if (empty($members)) 
             return new \ResponseError('指定的认证用户不存在');
-
         $acls = $this->getPostJson();
         foreach ($members as $member) {
             foreach ($acls as $acl) {

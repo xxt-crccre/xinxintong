@@ -19,6 +19,22 @@ class article_model extends article_base {
         return 'article';
     }
     /**
+     *
+     */
+    public function getEntryUrl($runningMpid, $id, $openid=null)
+    {
+        $url = "http://".$_SERVER['HTTP_HOST'];
+        $url .= "/rest/mi/matter";
+        $url .= "?mpid=$runningMpid&id=$id&type=article";
+        !empty($openid) && $url .= "&openid=$openid";
+        
+        $article = $this->byId($id, 'custom_body');
+        
+        $url .= '&tpl=' . ($article->custom_body === 'Y' ? 'cus' : 'std');
+        
+        return $url;
+    }
+    /**
     *
     */
     public function &byCreater($mpid, $creater, $fields='*', $cascade=false)
@@ -120,22 +136,6 @@ class article_model extends article_base {
         return $articles;
     }
     /**
-     * 文章打开的次数
-     * todo 应该用哪个openid，根据oauth是否开放来决定？
-     */
-    public function readLog($id)
-    {
-        $q = array(
-            'f.fid,f.nickname,f.openid,l.read_at',
-            'xxt_log_matter_read l,xxt_fans f',
-            "l.mpid=f.mpid and l.matter_type='article' and l.matter_id='$id' and l.ooid=f.openid"
-        );
-
-        $log = $this->query_objs_ss($q);
-
-        return $log;
-    }
-    /**
      * 当前访问用户是否已经点了赞
      */
     public function praised($vid, $article_id)
@@ -149,35 +149,6 @@ class article_model extends article_base {
         return 1 === (int)$this->query_val_ss($q);
     }
     /**
-     * 文章总的赞数
-     */
-    public function score($id)
-    {
-        $q = array(
-            'count(*)',
-            'xxt_article_score',
-            "article_id='$id'" 
-        );
-        $score = $this->query_val_ss($q);
-
-        return $score;
-    }
-    /**
-     * 文章打开的次数
-     */
-    public function readNum($id)
-    {
-        $q = array(
-            'count(*)',
-            'xxt_log_matter_read',
-            "matter_type='article' and matter_id='$id'"
-        );
-
-        $num = $this->query_val_ss($q);
-
-        return $num;
-    }
-    /**
      * 文章评论
      *
      * $range 分页参数
@@ -185,9 +156,9 @@ class article_model extends article_base {
     public function remarks($articleId, $remarkId=null, $range=false)
     {
         $q = array(
-            'r.*,f.nickname,f.fid',
-            'xxt_article_remark r,xxt_fans f',
-            "r.article_id='$articleId' and r.fid=f.fid"
+            'r.*',
+            'xxt_article_remark r',
+            "r.article_id='$articleId'"
         );
 
         if (!$range) {
@@ -224,23 +195,16 @@ class article_model extends article_base {
         }
     }
     /**
-     * 文章评论
-     *
-     * $range 分页参数
+     * 文章的评论用户
      */
     public function remarkers($articleId)
     {
-        $remarkers = array();
-        
         $q = array(
-            'distinct fid',
+            'distinct fid,openid,nickname',
             'xxt_article_remark r',
             "r.article_id='$articleId'"
         );
-        $remarks = $this->query_objs_ss($q);
-        foreach ($remarks as $remark) {
-            $remarkers[] = \TMS_APP::M('user/fans')->byId($remark->fid, 'openid,nickname');
-        }
+        $remarkers = $this->query_objs_ss($q);
         
         return $remarkers;
     }

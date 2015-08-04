@@ -22,6 +22,7 @@ xxtApp.controller('articleCtrl', ['$scope', '$location', 'http2', function ($sco
     $scope.back = function () {
         location.href = '/page/mp/matter/articles';
     };
+    $scope.entryUrl = '';
     http2.get('/rest/mp/mpaccount/get', function (rsp) {
         $scope.mpaccount = rsp.data;
         $scope.hasParent = rsp.data.parent_mpid && rsp.data.parent_mpid.length;
@@ -29,7 +30,8 @@ xxtApp.controller('articleCtrl', ['$scope', '$location', 'http2', function ($sco
     http2.get('/rest/mp/matter/article/get?id=' + $scope.id, function (rsp) {
         $scope.editing = rsp.data;
         $scope.editing.attachments === undefined && ($scope.editing.attachments = []);
-        $scope.entryUrl = 'http://' + location.host + '/rest/mi/matter?mpid=' + $scope.editing.mpid + '&id=' + $scope.id + '&type=article';
+        $scope.entryUrl = 'http://' + location.host + '/rest/mi/matter?mpid=' + $scope.mpaccount.mpid + '&id=' + $scope.id + '&type=article';
+        $scope.entryUrl += '&tpl=' + ($scope.editing.custom_body === 'N' ? 'std' : 'cus');
         $scope.picGalleryUrl = '/kcfinder/browse.php?lang=zh-cn&type=图片&mpid=' + $scope.editing.mpid;
         if (!$scope.editing.creater)
             $scope.bodyEditable = false;
@@ -92,7 +94,7 @@ xxtApp.controller('editCtrl', ['$scope', 'http2', function ($scope, http2) {
         });
     };
     $scope.downloadUrl = function (att) {
-        return '/rest/mi/matter/articleAttachment?mpid=' + $scope.editing.mpid + '&articleid=' + $scope.editing.id + '&attachmentid=' + att.id;
+        return '/rest/mi/article/attachmentGet?mpid=' + $scope.editing.mpid + '&articleid=' + $scope.editing.id + '&attachmentid=' + att.id;
     };
     $scope.gotoCode = function () {
         if ($scope.editing.page_id != 0)
@@ -192,6 +194,10 @@ xxtApp.controller('editCtrl', ['$scope', 'http2', function ($scope, http2) {
             $scope.$root.progmsg = null;
         });
     });
+    $scope.$watch('editing.custom_body', function (nv) {
+        if (!nv) return;
+        $scope.entryUrl = $scope.entryUrl.replace(/tpl=[^&]*/, nv === 'Y' ? 'tpl=cus' : 'tpl=std');
+    });
 }]);
 xxtApp.controller('remarkCtrl', ['$scope', 'http2', function ($scope, http2) {
     $scope.$parent.subView = 'remark';
@@ -199,7 +205,7 @@ xxtApp.controller('remarkCtrl', ['$scope', 'http2', function ($scope, http2) {
     $scope.delRemark = function (remark, index) {
         var ret = window.prompt('删除当前评论吗？请输入文章的标题');
         if (ret === $scope.editing.title) {
-            http2.get('/rest/mp/matter/article/delRemark?id=' + remark.id, function (rsp) {
+            http2.get('/rest/mp/matter/article/remarkDel?id=' + remark.id, function (rsp) {
                 $scope.remarks.splice(index, 1);
             });
         }
@@ -207,7 +213,7 @@ xxtApp.controller('remarkCtrl', ['$scope', 'http2', function ($scope, http2) {
     $scope.cleanRemark = function () {
         var ret = window.prompt('删除当前评论吗？请输入文章的标题');
         if (ret === $scope.editing.title) {
-            http2.get('/rest/mp/matter/article/cleanRemark?articleid=' + $scope.id, function (rsp) {
+            http2.get('/rest/mp/matter/article/remarkClean?articleid=' + $scope.id, function (rsp) {
                 $scope.remarks = [];
             });
         }

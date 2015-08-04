@@ -14,6 +14,13 @@ class article extends \member_base {
 
         return $rule_action;
     }
+    /**
+     *
+     */
+    protected function canAccessObj($mpid, $matterId, $member, $authapis, &$matter)
+    {
+        return $this->model('acl')->canAccessMatter($mpid, 'article', $matterId, $member, $authapis);
+    }
     /** 
      * 返回请求的素材
      *
@@ -22,23 +29,31 @@ class article extends \member_base {
      */
     public function get_action($mpid, $id)
     {
-        $openid = $this->getCookieOAuthUser($mpid);
-        $vid = $this->getVisitorId($mpid);
+        $user = $this->getUser($mpid);
         
         $data = array();
         
         $modelArticle = $this->model('matter\article');
         $article = $modelArticle->byId($id);
+        if (isset($article->access_control) && $article->access_control === 'Y')
+            $this->accessControl($mpid, $id, $article->authapis, $user->openid, $article, false);
+        
         $article->remarks =  $article->remark_num > 0 ? $modelArticle->remarks($id) : false;
-        $article->praised =  $modelArticle->praised($vid, $id);
+        $article->praised =  $modelArticle->praised($user->vid, $id);
+        if ($article->has_attachment === 'Y')
+            $article->attachments = $this->model()->query_objs_ss(
+                array(
+                    '*',
+                    'xxt_article_attachment',
+                    "article_id='$id'"
+                )
+            );
+        
         $data['article'] = $article;
 
-        $user = new \stdClass;
-        $user->openid = $openid;
-        $user->vid = $vid;
         $data['user'] = $user;
         
-        $mpaccount = $this->getCommonSetting($mpid);
+        $mpaccount = $this->getMpSetting($mpid);
         $user_agent = $_SERVER['HTTP_USER_AGENT'];
         if (preg_match('/yixin/i', $user_agent)) {
             $modelMpa = $this->model('mp\mpaccount');
@@ -109,11 +124,16 @@ class article extends \member_base {
      */
     public function remark_action($mpid, $id)
     {
-        $posted = $this->getPostJson();
+        if (isset($_POST['remark'])) {
+            $posted = new \stdClass;
+            $posted->remark = $_POST['remark'];
+        } else {
+            $posted = $this->getPostJson();
+        }
         if (empty($posted->remark))
             return new \ResponseError('评论不允许为空！');
         
-        $user = $this->getUser($mpid);
+        $user = $this->getUser($mpid, array('verbose' => array('fan' => 'Y')));
         if (empty($user->openid))
             return new \ResponseError('无法获得用户标识，不允许发布评论');
         /**
@@ -121,11 +141,14 @@ class article extends \member_base {
          */
         $i = array(
             'fid' => $user->fan->fid,
+            'openid' => $user->openid,
+            'nickname' => $user->fan->nickname,
             'article_id' => $id, 
             'create_at' => time(), 
             'remark' => $this->model()->escape($posted->remark)
         ); 
         $remarkId = $this->model()->insert('xxt_article_remark', $i, true);
+        
         $this->model()->update("update xxt_article set remark_num=remark_num+1 where id='$id'");
         
         $modelArticle = $this->model('matter\article'); 
@@ -172,7 +195,7 @@ class article extends \member_base {
             /**
              * 发送评论提醒
              */
-            $url = 'http://'.$_SERVER['HTTP_HOST']."/views/default/article2.html?mpid=$mpid&id=$id";
+            $url = 'http://'.$_SERVER['HTTP_HOST']."/rest/mi/matter?mpid=$mpid&id=$id&tpl=std";
             $text = urlencode($remark->nickname);
             $text .= urlencode('对【');
             $text .= '<a href="'.$url.'">';
@@ -194,5 +217,31 @@ class article extends \member_base {
         }
 
         return new \ResponseData($remark);
+    }
+    /**
+     *
+     */
+    public function attachmentGet_action($mpid, $articleid, $attachmentid)
+    {
+        $q = array(
+            '*', 
+            'xxt_article_attachment', 
+            "article_id='$articleid' and id='$attachmentid'"
+        );
+        $att = $this->model()->query_obj_ss($q);
+        
+        if (strpos($att->url, 'alioss') === 0) {
+            $downloadUrl = 'http://xxt-attachment.oss-cn-shanghai.aliyuncs.com/'.$mpid.'/article/'.$articleid.'/'.$att->name;
+            $this->redirect($downloadUrl);
+        } else {
+            $fs = $this->model('fs/saestore', $mpid);
+            //header("Content-Type: application/force-download");
+            header("Content-Type: $att->type");
+            header("Content-Disposition: attachment; filename=".$att->name);
+            header('Content-Length: '.$att->size);
+            echo $fs->read($att->url);
+        }
+        
+        exit;
     }
 }

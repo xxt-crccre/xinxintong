@@ -37,7 +37,7 @@ class matter_ctrl extends \mp\mp_controller {
         
         (true === $prights || (isset($prights['matter_article']) && $prights['matter_article']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/articles','title'=>'单图文');
         (true === $prights || (isset($prights['matter_text']) && $prights['matter_text']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/texts','title'=>'文本');
-        (true === $prights || (isset($prights['matter_news']) && $prights['matter_news']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/news','title'=>'多图文');
+        (true === $prights || (isset($prights['matter_news']) && $prights['matter_news']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/newses','title'=>'多图文');
         (true === $prights || (isset($prights['matter_channel']) && $prights['matter_channel']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/channels','title'=>'频道');
         (true === $prights || (isset($prights['matter_link']) && $prights['matter_link']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/links','title'=>'链接');
         (true === $prights || (isset($prights['matter_tmplmsg']) && $prights['matter_tmplmsg']['read_p'] === 'Y')) && $entries[] = array('url'=>'/mp/matter/tmplmsgs','title'=>'模板消息');
@@ -85,5 +85,18 @@ class matter_ctrl extends \mp\mp_controller {
             "mpid='$this->mpid' and id=$acl"
         );
         return new \ResponseData($rst);
+    }
+    /**
+     * 素材的阅读日志
+     */
+    public function readGet_action($id, $page = 1, $size = 30)
+    {
+        $model = $this->model('log');
+
+        $type = $this->getMatterType();
+        
+        $reads = $model->getMatterRead($type, $id, $page, $size);
+
+        return new \ResponseData($reads);
     }
 }
