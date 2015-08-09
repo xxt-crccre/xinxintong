@@ -141,7 +141,14 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function ($lp
         return deferred.promise;
     };
     $scope.loading = true;
-    getArticle().then(function () { $scope.loading = false; });
+    getArticle().then(function () {
+        $scope.loading = false;
+        $timeout(function () {
+            var audios;
+            audios = document.querySelectorAll('audio');
+            audios.length > 0 && audios[0].play();
+        });
+    });
     $scope.like = function () {
         if ($scope.mode === 'preview') return;
         var url = "/rest/mi/article/score?mpid=" + mpid + "&id=" + id;
@@ -173,6 +180,9 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function ($lp
     };
     $scope.followMp = function () {
         location.href = 'yixin://opencard?pid=' + $scope.mpa.yx_cardid;
+    };
+    window.openMatter = function (id, type) {
+        location.href = '/rest/mi/matter?mpid=' + mpid + '&id=' + id + '&type=' + type + '&tpl=std';
     };
 }]).filter('filesize', function () {
     return function (length) {

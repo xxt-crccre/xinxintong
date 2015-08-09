@@ -302,7 +302,7 @@ xxtMatters.controller('MattersGalleryModalInstCtrl', ['$scope', '$http', '$modal
         url += '/' + $scope.p.matterType.value;
         url += '/get?page=' + $scope.page.current + '&size=' + $scope.page.size + '&fields=' + fields;
         $scope.p.fromParent && $scope.p.fromParent == 1 && (params.src = 'p');
-        $http.post(url, params, { headers: { 'ACCEPT': 'application/json' } }).success(function (rsp) {
+        $http.post(url, params).success(function (rsp) {
             if (/article|contribute/.test($scope.p.matterType.value)) {
                 $scope.matters = rsp.data[0];
                 rsp.data[1] && ($scope.page.total = rsp.data[1]);
@@ -361,55 +361,48 @@ xxtMatters.directive('mattersgallery', function () {
         templateUrl: '/static/template/mattersgallery.html?v=3',
     }
 });
-xxtMatters.controller('PicGalleryModalInstCtrl', ['$scope', '$modalInstance', 'url', 'setshowname', function ($scope, $modalInstance, url, setshowname) {
-    $scope.url = url;
-    $scope.setshowname = setshowname;
-    $scope.setting = { isShowName: 'N' };
-    $scope.cancel = function () {
-        $modalInstance.dismiss('cancel');
-    };
-    $scope.$watch('setting.isShowName', function (nv) {
-        $modalInstance.isShowName = nv;
-    });
-}]);
-xxtMatters.controller('PicController', ['$scope', '$http', '$modal', function ($scope, $http, $modal) {
-    var modalInstance,
-        open = function (setshowname) {
-            modalInstance = $modal.open({
-                templateUrl: 'modalPicGalllery.html',
-                controller: 'PicGalleryModalInstCtrl',
-                backdrop: 'static',
-                size: 'lg',
-                windowClass: 'auto-height picgallery',
-                resolve: {
-                    url: function () {
-                        return $scope.picGalleryUrl;
-                    },
-                    setshowname: function () {
-                        return setshowname;
-                    }
-                }
-            });
-        };
-    $scope.$on('picgallery.open', function (event, callback, multiple, setshowname) {
-        var kcfCallBack = function (url) {
-            window.KCFinder = null;
-            callback && callback(url, modalInstance.isShowName);
-            modalInstance.close();
-        };
-        if (multiple)
-            window.KCFinder = { callBackMultiple: kcfCallBack };
-        else
-            window.KCFinder = { callBack: kcfCallBack };
-        open(setshowname);
-    });
-}]);
-xxtMatters.directive('picgallery', function () {
+xxtMatters.directive('mediagallery', function () {
     return {
         restrict: 'EA',
-        scope: { picGalleryUrl: '@url' },
-        controller: 'PicController',
-        templateUrl: '/static/template/picgallery.html?_=1',
+        scope: { boxId: '@boxId' },
+        controller: ['$scope', '$http', '$modal', function ($scope, $http, $modal) {
+            var modalInstance, open;
+            open = function (options) {
+                modalInstance = $modal.open({
+                    templateUrl: 'modalMediaGalllery.html',
+                    controller: ['$scope', '$modalInstance', 'url', function ($scope2, $mi, url) {
+                        $scope2.title = options.mediaType;
+                        $scope2.url = url;
+                        $scope2.setshowname = options.setshowname;
+                        $scope2.setting = { isShowName: 'N' };
+                        $scope2.cancel = function () { $mi.dismiss('cancel'); };
+                        $scope2.$watch('setting.isShowName', function (nv) { $mi.isShowName = nv; });
+                    }],
+                    backdrop: 'static',
+                    size: 'lg',
+                    windowClass: 'auto-height media-gallery',
+                    resolve: {
+                        url: function () {
+                            return "/kcfinder/browse.php?lang=zh-cn&type=" + options.mediaType + "&mpid=" + $scope.boxId;
+                        },
+                    }
+                });
+            };
+            $scope.$on('mediagallery.open', function (event, options) {
+                options = angular.extend({ mediaType: "图片", callback: null, multiple: false, setshowname: false }, options);
+                var kcfCallBack = function (url) {
+                    window.KCFinder = null;
+                    options.callback && options.callback(url, modalInstance.isShowName);
+                    modalInstance.close();
+                };
+                if (options.multiple)
+                    window.KCFinder = { callBackMultiple: kcfCallBack };
+                else
+                    window.KCFinder = { callBack: kcfCallBack };
+                open(options);
+            });
+        }],
+        templateUrl: '/static/template/mediagallery.html?_=1',
     }
 });
 xxtMatters.controller('AccessControllerUserPickerController', ['$scope', '$modalInstance', 'userSetAsParam', function ($scope, $mi, userSetAsParam) {

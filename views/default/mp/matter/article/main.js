@@ -26,20 +26,19 @@ xxtApp.controller('articleCtrl', ['$scope', '$location', 'http2', function ($sco
     http2.get('/rest/mp/mpaccount/get', function (rsp) {
         $scope.mpaccount = rsp.data;
         $scope.hasParent = rsp.data.parent_mpid && rsp.data.parent_mpid.length;
-    });
-    http2.get('/rest/mp/matter/article/get?id=' + $scope.id, function (rsp) {
-        $scope.editing = rsp.data;
-        $scope.editing.attachments === undefined && ($scope.editing.attachments = []);
-        $scope.entryUrl = 'http://' + location.host + '/rest/mi/matter?mpid=' + $scope.mpaccount.mpid + '&id=' + $scope.id + '&type=article';
-        $scope.entryUrl += '&tpl=' + ($scope.editing.custom_body === 'N' ? 'std' : 'cus');
-        $scope.picGalleryUrl = '/kcfinder/browse.php?lang=zh-cn&type=图片&mpid=' + $scope.editing.mpid;
-        if (!$scope.editing.creater)
-            $scope.bodyEditable = false;
-        else
-            $scope.bodyEditable = true;
+        http2.get('/rest/mp/matter/article/get?id=' + $scope.id, function (rsp) {
+            $scope.editing = rsp.data;
+            $scope.editing.attachments === undefined && ($scope.editing.attachments = []);
+            $scope.entryUrl = 'http://' + location.host + '/rest/mi/matter?mpid=' + $scope.mpaccount.mpid + '&id=' + $scope.id + '&type=article';
+            $scope.entryUrl += '&tpl=' + ($scope.editing.custom_body === 'N' ? 'std' : 'cus');
+            if (!$scope.editing.creater)
+                $scope.bodyEditable = false;
+            else
+                $scope.bodyEditable = true;
+        });
     });
 }]);
-xxtApp.controller('editCtrl', ['$scope', 'http2', function ($scope, http2) {
+xxtApp.controller('editCtrl', ['$scope', '$modal', 'http2', function ($scope, $modal, http2) {
     $scope.$parent.subView = 'edit';
     $scope.innerlinkTypes = [
         { value: 'article', title: '单图文', url: '/rest/mp/matter' },
@@ -76,16 +75,26 @@ xxtApp.controller('editCtrl', ['$scope', 'http2', function ($scope, http2) {
         });
     };
     $scope.setPic = function () {
-        $scope.$broadcast('picgallery.open', function (url) {
-            url += '?_=' + (new Date()).getTime();
-            $scope.editing.pic = url;
-            $scope.update('pic');
-        }, false);
+        var options = {
+            callback: function (url) {
+                $scope.editing.pic = url + '?_=' + (new Date()) * 1;
+                $scope.update('pic');
+            }
+        };
+        $scope.$broadcast('mediagallery.open', options);
     };
     $scope.removePic = function () {
         $scope.editing.pic = '';
         $scope.update('pic');
     };
+    $scope.$on('tinymce.multipleimage.open', function (event, callback) {
+        var options = {
+            callback: callback,
+            multiple: true,
+            setshowname: true
+        };
+        $scope.$broadcast('mediagallery.open', options);
+    });
     $scope.delAttachment = function (index, att) {
         $scope.$root.progmsg = '删除文件';
         http2.get('/rest/mp/matter/article/attachmentDel?id=' + att.id, function success(rsp) {
@@ -126,6 +135,73 @@ xxtApp.controller('editCtrl', ['$scope', 'http2', function ($scope, http2) {
             }
         });
     };
+    $scope.embedVideo = function () {
+        $modal.open({
+            templateUrl: 'insertMedia.html',
+            controller: ['$modalInstance', '$scope', function ($mi, $scope) {
+                $scope.data = { url: '' };
+                $scope.cancel = function () { $mi.dismiss() };
+                $scope.ok = function () { $mi.close($scope.data) };
+            }],
+            backdrop: 'static',
+        }).result.then(function (data) {
+            var editor, dom, url;
+            url = data.url;
+            if (data.url.length > 0) {
+                editor = tinymce.get('body1');
+                dom = editor.dom;
+                editor.insertContent(
+                    dom.createHTML('p', { 'class': 'video' },
+                        dom.createHTML(
+                            'video',
+                            {
+                                style: 'width:100%',
+                                controls: "controls",
+                            },
+                            dom.createHTML(
+                                'source',
+                                {
+                                    src: url,
+                                    type: "video/mp4",
+                                })
+                            )
+                        )
+                    );
+            }
+        });
+    };
+    var insertAudio = function (url) {
+        var editor, dom;
+        if (url.length > 0) {
+            editor = tinymce.get('body1');
+            dom = editor.dom;
+            editor.insertContent(
+                dom.createHTML('p', { 'class': 'audio' },
+                    dom.createHTML('audio', {
+                        src: url,
+                        controls: "controls",
+                        //autoplay: "autoplay"
+                    }))
+                );
+        }
+    };
+    $scope.embedAudio = function () {
+        if ($scope.mpaccount._env.SAE) {
+            $modal.open({
+                templateUrl: 'insertMedia.html',
+                controller: ['$modalInstance', '$scope', function ($mi, $scope) {
+                    $scope.data = { url: '' };
+                    $scope.cancel = function () { $mi.dismiss() };
+                    $scope.ok = function () { $mi.close($scope.data) };
+                }],
+                backdrop: 'static',
+            }).result.then(function (data) {
+                insertAudio(data.url);
+            });
+        } else {
+            $scope.$broadcast('mediagallery.open', { mediaType: '音频', callback: insertAudio });
+        }
+    };
     $scope.upload2Mp = function () {
         var url;
         url = '/rest/mp/matter/article/upload2Mp?id=' + $scope.id;
@@ -136,9 +212,7 @@ xxtApp.controller('editCtrl', ['$scope', 'http2', function ($scope, http2) {
             $scope.$root.infomsg = '上传成功';
         });
     };
-    $scope.$on('tinymce.multipleimage.open', function (event, callback) {
-        $scope.$broadcast('picgallery.open', callback, true, true);
-    });
+
     $scope.$on('tag.xxt.combox.done', function (event, aSelected) {
         var aNewTags = [];
         for (var i in aSelected) {
