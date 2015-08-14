@@ -175,6 +175,8 @@ xxtApp.controller('apiCtrl', ['$scope', 'http2', '$http', '$modal', 'Mp', 'Autha
                     $scope.$root.progmsg = rsp.data.param.desc + (rsp.data.param.step ? '，剩余批次：' + rsp.data.param.left : '');
                     if (rsp.data.param.next)
                         doImport(rsp.data.param);
+                } else {
+                    $scope.$root.progmsg = '同步操作完成';
                 }
             });
         };

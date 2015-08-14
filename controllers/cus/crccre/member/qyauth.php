@@ -35,13 +35,18 @@ class qyauth extends \member_base {
 		$proxy = $this->model('mpproxy/qy', $mpid);
 
 		if (!array_key_exists($user['useraccount'], $existUsers)) {
+			/* 新用户 */
 			$rst = $proxy->userCreate($user['useraccount'], $user);
 			$uCounter++;
 		} else {
+			/* 更新已有用户 */
+			$existUser = $existUsers[$user['useraccount']];
 			unset($existUsers[$user['useraccount']]);
-			$rst = $proxy->userUpdate($user['useraccount'], $user);
+			if ($existUser->name !== $user['name'] || $existUser->mobile !== $user['mobile'] || count(array_diff($existUser->department, $user['department'])) > 0 || count(array_diff($user['department'], $existUser->department)) > 0) {
+				$rst = $proxy->userUpdate($user['useraccount'], $user);
+			}
 		}
-		if ($rst[0] === false) {
+		if (isset($rst) && $rst[0] === false) {
 			$w = array($user['useraccount'], $rst[1]);
 			if (false !== strpos($rst[1], '60003')) {
 				$w['department'] = $user['department'];
@@ -137,11 +142,10 @@ class qyauth extends \member_base {
 	/**
 	 * 本地通讯录中的部门和其下的子部门同步到企业号通讯录
 	 */
-	private function uploadDept2Qy($mpid, $dept, &$dCounter, &$existDepts, &$localDepts, &$warning) {
-		$localDepts[$dept['guid']] = $dept['id'];
+	private function uploadDept2Qy($mpid, $dept, &$dCounter, &$existDepts, &$warning) {
 		$proxy = $this->model('mpproxy/qy', $mpid);
 
-		if (!array_key_exists($dept['id'], $existDepts)) {
+		if (!array_key_exists((int) $dept['id'], $existDepts)) {
 			/*
 			 * 创建新部门
 			 */
@@ -181,10 +185,41 @@ class qyauth extends \member_base {
 			if ($existDept->name !== $dept['title'] || $existDept->parentid !== $dept['pid']) {
 				$rst = $proxy->departmentUpdate($dept['id'], $dept['title'], $dept['pid']);
 				if ($rst[0] === false) {
-					$warning[] = array($dept['id'], $rst[1]);
+					//$warning[] = array($dept['id'], $rst[1]);
+					/**
+					 * 失败
+					 */
+					if (false !== strpos($rst[1], '60008')) {
+						/**
+						 * 部门名称已存在
+						 */
+						$rst2 = $proxy->departmentUpdate($dept['title'] . '_' . $dept['order'], $dept['pid'], $dept['order'], $dept['id']);
+						if ($rst2[0] === false) {
+							/**
+							 * 无法创建部门
+							 */
+							$warning[] = array($dept['guid'], $rst2[1]);
+							return $rst2;
+						}
+					} else {
+						/**
+						 * 无法创建部门
+						 */
+						$warning[] = array($dept['guid'], $rst[1]);
+						return $rst;
+					}
 				}
+				$dCounter++;
 			}
 		}
+
+		return array(true);
+	}
+	/**
+	 * 递归获得组织机构中的部门
+	 */
+	private function getLocalDepts($mpid, $dept, &$localDepts) {
+		$localDepts[] = $dept;
 		/**
 		 * 同步子部门
 		 */
@@ -196,12 +231,8 @@ class qyauth extends \member_base {
 			}
 
 			$child['order'] = $order + 1;
-			$child['pid'] = $dept['id'];
-			$rst = $this->uploadDept2Qy($mpid, $child, $dCounter, $existDepts, $localDepts, $warning);
-			if ($rst[0] === false) {
-				$warning[] = array($dept['guid'], $rst[1]);
-			}
-
+			$child['pid'] = (int) $dept['id'];
+			$this->getLocalDepts($mpid, $child, $localDepts);
 		}
 
 		return array(true);
@@ -236,36 +267,67 @@ class qyauth extends \member_base {
 
 			$_SESSION['existDepts'] = $existDepts;
 
-			return new \ResponseData(array('param' => array('next' => 1, 'desc' => '获取企业号通讯录中已有的部门')));
+			return new \ResponseData(array('param' => array('next' => 1, 'desc' => '完成获取企业号通讯录中已有部门（' . count($existDepts) . '个）')));
 		}
 		/**
 		 * 更新部门数据
 		 */
 		if ($next == 1) {
-			$warning = array();
-			$dCounter = 0;
-			$existDepts = $_SESSION['existDepts'];
 			$localDepts = array();
+			$localDeptsGuid2Id = array();
 			$nodes = $this->model('cus/org')->nodes(); // 获得根部门
 			foreach ($nodes as $order => $node) {
 				$node['order'] = $order + 1;
 				$node['pid'] = 1;
-				$this->uploadDept2Qy($mpid, $node, $dCounter, $existDepts, $localDepts, $warning);
+				$this->getLocalDepts($mpid, $node, $localDepts);
+			}
+
+			$_SESSION['localDepts'] = $localDepts;
+			$_SESSION['localDeptsGuid2Id'] = $localDeptsGuid2Id;
+
+			return new \ResponseData(array('param' => array('next' => 2, 'desc' => '完成获取组织机构中已有部门（' . count($localDepts) . '）')));
+		}
+		/**
+		 * 更新部门数据
+		 */
+		if ($next == 2) {
+			$warning = isset($_SESSION['warning']) ? $_SESSION['warning'] : array();
+			$dCounter = isset($_SESSION['dCounter']) ? $_SESSION['dCounter'] : 0;
+			$existDepts = $_SESSION['existDepts'];
+			$localDepts = $_SESSION['localDepts'];
+			$localDeptsGuid2Id = $_SESSION['localDeptsGuid2Id'];
+			$counter = 0;
+			foreach ($localDepts as $index => $ldept) {
+				$this->uploadDept2Qy($mpid, $ldept, $dCounter, $existDepts, $warning);
+				$localDeptsGuid2Id[$ldept['guid']] = $ldept['id'];
+				unset($localDepts[$index]);
+				$counter++;
+				if ($counter === 100) {
+					$_SESSION['existDepts'] = $existDepts;
+					$_SESSION['dCounter'] = $dCounter;
+					$_SESSION['localDepts'] = $localDepts;
+					$_SESSION['localDeptsGuid2Id'] = $localDeptsGuid2Id;
+					$_SESSION['warning'] = $warning;
+					$step++;
+					$param = array('param' => array('next' => 2, 'step' => $step, 'left' => ceil(count($localDepts) / 100), 'desc' => '批量同步部门数据'));
+					return new \ResponseData($param);
+				}
 			}
 			$_SESSION['existDepts'] = $existDepts;
 			$_SESSION['dCounter'] = $dCounter;
-			$_SESSION['localDepts'] = $localDepts;
+			unset($_SESSION['localDepts']);
+			$_SESSION['localDeptsGuid2Id'] = $localDeptsGuid2Id;
 			$_SESSION['warning'] = $warning;
+			$step++;
 
-			return new \ResponseData(array('param' => array('next' => 2, 'desc' => '完成部门数据到企业号通讯录的同步')));
+			return new \ResponseData(array('param' => array('next' => 3, 'desc' => '完成部门数据到企业号通讯录的同步')));
 		}
 		/**
 		 * 获得企业号通讯录中已有的所有的用户
 		 */
-		if ($next == 2) {
-			$localDepts = $_SESSION['localDepts'];
+		if ($next == 3) {
 			$uploadUsers = array();
-			$rst = $this->model('mpproxy/qy', $mpid)->userSimpleList(1);
+			$rst = $this->model('mpproxy/qy', $mpid)->userList(1, 1);
 			if ($rst[0] === false) {
 				return new \ResponseError($rst[1]);
 			}
@@ -275,13 +337,13 @@ class qyauth extends \member_base {
 			}
 			$_SESSION['existUsers'] = $existUsers;
 
-			return new \ResponseData(array('param' => array('next' => 3, 'desc' => '获得企业号通讯录中所有用户')));
+			return new \ResponseData(array('param' => array('next' => 4, 'desc' => '获得企业号通讯录中所有用户（' . count($existUsers) . '）个')));
 		}
 		/**
 		 * 获得本地用户数据
 		 */
-		if ($next == 3) {
-			$localDepts = $_SESSION['localDepts'];
+		if ($next == 4) {
+			$localDeptsGuid2Id = $_SESSION['localDeptsGuid2Id'];
 			$existUsers = $_SESSION['existUsers'];
 			$uploadUsers = array();
 			$nodes = $this->model('cus/org')->getNodesByTitleType('5');
@@ -298,19 +360,20 @@ class qyauth extends \member_base {
 						'department' => array(),
 					);
 				}
-				if (isset($localDepts[$node['parentid']])) {
-					$user['department'][] = $localDepts[$node['parentid']];
+				if (isset($localDeptsGuid2Id[$node['parentid']])) {
+					$user['department'][] = $localDeptsGuid2Id[$node['parentid']];
 				}
 				$uploadUsers[$node['useraccount']] = $user;
 			}
 			$_SESSION['uploadUsers'] = $uploadUsers;
+			unset($_SESSION['localDeptsGuid2Id']);
 
-			return new \ResponseData(array('param' => array('next' => 4, 'desc' => '获得所有本地用户数据')));
+			return new \ResponseData(array('param' => array('next' => 5, 'desc' => '获得所有本地用户数据（' . count($uploadUsers) . '）')));
 		}
 		/**
 		 * 更新用户数据
 		 */
-		if ($next == 4) {
+		if ($next == 5) {
 			$uCounter = isset($_SESSION['uCounter']) ? $_SESSION['uCounter'] : 0;
 			$warning = $_SESSION['warning'];
 			$existUsers = $_SESSION['existUsers'];
@@ -321,25 +384,29 @@ class qyauth extends \member_base {
 				$this->uploadUser2Qy($mpid, $user, $uCounter, $existUsers, $warning);
 				unset($uploadUsers[$user['useraccount']]);
 				$counter++;
-				if ($counter === 100) {
+				if ($counter === 10) {
 					$_SESSION['uploadUsers'] = $uploadUsers;
 					$_SESSION['existUsers'] = $existUsers;
 					$_SESSION['warning'] = $warning;
 					$_SESSION['uCounter'] = $uCounter;
 					$step++;
-					$left = ceil(count($uploadUsers) / 100);
-					$param = array('next' => 4, 'desc' => '分批同步用户数据', 'step' => $step, 'left' => $left);
+					$left = ceil(count($uploadUsers) / 10);
+					$param = array('next' => 5, 'desc' => '分批同步用户数据', 'step' => $step, 'left' => $left);
 					return new \ResponseData(array('param' => $param));
 				}
 				$user = next($uploadUsers);
 			}
+			$_SESSION['uploadUsers'] = $uploadUsers;
+			$_SESSION['existUsers'] = $existUsers;
+			$_SESSION['warning'] = $warning;
+			$_SESSION['uCounter'] = $uCounter;
 
-			return new \ResponseData(array('param' => array('next' => 5, 'desc' => '完成同步用户数据')));
+			return new \ResponseData(array('param' => array('next' => 6, 'desc' => '完成同步用户数据')));
 		}
 		/**
 		 * 删除已经不存在的用户
 		 */
-		if ($next == 5) {
+		if ($next == 6) {
 			/* 删除用户 */
 			$existUsers = $_SESSION['existUsers'];
 			if (!empty($existUsers)) {
@@ -355,17 +422,17 @@ class qyauth extends \member_base {
 						$_SESSION['existUsers'] = $existUsers;
 						$step++;
 						$left = ceil(count($existUsers) / 5);
-						$param = array('next' => 5, 'desc' => '分批删除已经不存在的用户', 'step' => $step, 'left' => $left);
+						$param = array('next' => 6, 'desc' => '分批删除已经不存在的用户', 'step' => $step, 'left' => $left);
 						return new \ResponseData(array('param' => $param));
 					}
 				}
-				return new \ResponseData(array('param' => array('next' => 6, 'desc' => '完成删除已经不存在的用户')));
 			}
+			return new \ResponseData(array('param' => array('next' => 7, 'desc' => '完成删除已经不存在的用户')));
 		}
 		/**
 		 * 删除已经不存在的部门
 		 */
-		if ($next == 6) {
+		if ($next == 7) {
 			$existDepts = $_SESSION['existDepts'];
 			$warning = $_SESSION['warning'];
 			if (count($existDepts) > 0) {
@@ -378,13 +445,14 @@ class qyauth extends \member_base {
 						$_SESSION['warning'] = $warning;
 						$step++;
 						$left = ceil(count($existDepts) / 5);
-						$param = array('next' => 6, 'desc' => '分批删除已经不存在的部门', 'step' => $step, 'left' => $left);
+						$param = array('next' => 7, 'desc' => '分批删除已经不存在的部门', 'step' => $step, 'left' => $left);
 						return new \ResponseData(array('param' => $param));
 					}
 				}
-
-				return new \ResponseData(array('param' => array('next' => 7, 'desc' => '完成删除已经不存在的部门')));
+				$_SESSION['existDepts'] = $existDepts;
+				$_SESSION['warning'] = $warning;
 			}
+			return new \ResponseData(array('param' => array('next' => 8, 'desc' => '完成删除已经不存在的部门')));
 		}
 		/**
 		 * 清理数据
@@ -393,12 +461,12 @@ class qyauth extends \member_base {
 		$dCounter = $_SESSION['dCounter'];
 		$existUsers = $_SESSION['existUsers'];
 		$uCounter = isset($_SESSION['uCounter']) ? $_SESSION['uCounter'] : 0;
-		$localDepts = $_SESSION['localDepts'];
+		//$localDepts = $_SESSION['localDepts'];
 		$warning = $_SESSION['warning'];
 		unset($_SESSION['dCounter']);
 		unset($_SESSION['uCounter']);
 		unset($_SESSION['existDepts']);
-		unset($_SESSION['localDepts']);
+		//unset($_SESSION['localDepts']);
 		unset($_SESSION['existUsers']);
 		unset($_SESSION['uploadUsers']);
 		/**
