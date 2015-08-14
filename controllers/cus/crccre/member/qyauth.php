@@ -29,7 +29,7 @@ class qyauth extends \member_base {
 		return $rule_action;
 	}
 	/**
-	 *
+	 * 更新用户信息
 	 */
 	private function uploadUser2Qy($mpid, $user, &$uCounter, &$existUsers, &$warning) {
 		$proxy = $this->model('mpproxy/qy', $mpid);
@@ -47,15 +47,10 @@ class qyauth extends \member_base {
 			}
 		}
 		if (isset($rst) && $rst[0] === false) {
-			$w = array($user['useraccount'], $rst[1]);
-			if (false !== strpos($rst[1], '60003')) {
-				$w['department'] = $user['department'];
-			}
-
-			if (false !== strpos($rst[1], '40003')) {
-				$w['guid'] = $user['guid'];
-			}
-
+			$w = new \stdClass;
+			$w->{$user['guid']} = $rst[1];
+			$w->user = $user;
+			unset($w->user['guid']);
 			$warning[] = $w;
 		}
 	}
@@ -185,7 +180,6 @@ class qyauth extends \member_base {
 			if ($existDept->name !== $dept['title'] || $existDept->parentid !== $dept['pid']) {
 				$rst = $proxy->departmentUpdate($dept['id'], $dept['title'], $dept['pid']);
 				if ($rst[0] === false) {
-					//$warning[] = array($dept['id'], $rst[1]);
 					/**
 					 * 失败
 					 */
@@ -193,17 +187,19 @@ class qyauth extends \member_base {
 						/**
 						 * 部门名称已存在
 						 */
-						$rst2 = $proxy->departmentUpdate($dept['title'] . '_' . $dept['order'], $dept['pid'], $dept['order'], $dept['id']);
-						if ($rst2[0] === false) {
-							/**
-							 * 无法创建部门
-							 */
-							$warning[] = array($dept['guid'], $rst2[1]);
-							return $rst2;
+						if ($existDept->name !== $dept['title'] . '_' . $dept['order'] || $existDept->parentid !== $dept['pid']) {
+							$rst2 = $proxy->departmentUpdate($dept['id'], $dept['title'] . '_' . $dept['order'], $dept['pid']);
+							if ($rst2[0] === false) {
+								/**
+								 * 无法跟新部门
+								 */
+								$warning[] = array($dept['guid'], $rst2[1]);
+								return $rst2;
+							}
 						}
 					} else {
 						/**
-						 * 无法创建部门
+						 * 无法更新部门
 						 */
 						$warning[] = array($dept['guid'], $rst[1]);
 						return $rst;
@@ -384,13 +380,13 @@ class qyauth extends \member_base {
 				$this->uploadUser2Qy($mpid, $user, $uCounter, $existUsers, $warning);
 				unset($uploadUsers[$user['useraccount']]);
 				$counter++;
-				if ($counter === 10) {
+				if ($counter === 50) {
 					$_SESSION['uploadUsers'] = $uploadUsers;
 					$_SESSION['existUsers'] = $existUsers;
 					$_SESSION['warning'] = $warning;
 					$_SESSION['uCounter'] = $uCounter;
 					$step++;
-					$left = ceil(count($uploadUsers) / 10);
+					$left = ceil(count($uploadUsers) / 50);
 					$param = array('next' => 5, 'desc' => '分批同步用户数据', 'step' => $step, 'left' => $left);
 					return new \ResponseData(array('param' => $param));
 				}
@@ -426,6 +422,7 @@ class qyauth extends \member_base {
 						return new \ResponseData(array('param' => $param));
 					}
 				}
+				$_SESSION['existUsers'] = $existUsers;
 			}
 			return new \ResponseData(array('param' => array('next' => 7, 'desc' => '完成删除已经不存在的用户')));
 		}
@@ -461,14 +458,13 @@ class qyauth extends \member_base {
 		$dCounter = $_SESSION['dCounter'];
 		$existUsers = $_SESSION['existUsers'];
 		$uCounter = isset($_SESSION['uCounter']) ? $_SESSION['uCounter'] : 0;
-		//$localDepts = $_SESSION['localDepts'];
 		$warning = $_SESSION['warning'];
 		unset($_SESSION['dCounter']);
 		unset($_SESSION['uCounter']);
 		unset($_SESSION['existDepts']);
-		//unset($_SESSION['localDepts']);
 		unset($_SESSION['existUsers']);
 		unset($_SESSION['uploadUsers']);
+		unset($_SESSION['warning']);
 		/**
 		 * 更新时间戳
 		 */
