@@ -176,7 +176,10 @@ xxtApp.controller('apiCtrl', ['$scope', 'http2', '$http', '$modal', 'Mp', 'Autha
                     if (rsp.data.param.next)
                         doImport(rsp.data.param);
                 } else {
-                    $scope.$root.progmsg = '同步操作完成';
+                    if (rsp.data[4] !== undefined && rsp.data[4].length) 
+                        $scope.$root.errmsg = JSON.stringify(rsp.data[4]);
+                    else
+                        $scope.$root.progmsg = '同步操作完成';
                 }
             });
         };
