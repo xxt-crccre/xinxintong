@@ -143,4 +143,17 @@ class org_model extends TMS_MODEL {
 
 		return $nodes;
 	}
+	/*
+	 * 获得指定用户的虚拟组
+	 */
+	public function &getUserVGroupList($userid) {
+		$url = 'http://umtest.crccre.cn/REST/GetUserVGroupList.aspx';
+		$url .= '?UserAccount=' . $userid;
+
+		$result = file_get_contents($url);
+
+		$vGroups = json_decode($result);
+
+		return $vGroups;
+	}
 }
