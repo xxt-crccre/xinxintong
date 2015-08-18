@@ -55,63 +55,62 @@ class article extends \xxt_base {
 	public function upload_action($mpid) {
 		$posted = $this->getPostJson();
 
-		$current = time();
+		$postedArticle = $posted->article;
 
-		if (empty($posted->title)) {
+		if (empty($postedArticle->title)) {
 			return new \ResponseError('文章标题不允许为空');
 		}
 
-		if (empty($posted->body)) {
+		if (empty($postedArticle->body)) {
 			return new \ResponseError('文章内容不允许为空');
 		}
 		/**
 		 * 替换头图的图片
 		 */
-		if (!empty($posted->coverpic)) {
-			$newUrl = $this->storeUrl($mpid, $posted->coverpic);
+		if (!empty($postedArticle->coverpic)) {
+			$newUrl = $this->storeUrl($mpid, $postedArticle->coverpic);
 			if ($newUrl === false) {
-				return new \ResponseError('图片' . $posted->coverpic . '转存失败');
+				return new \ResponseError('图片' . $postedArticle->coverpic . '转存失败');
 			}
 			/* 替换正文中的url*/
-			$posted->coverpic = $newUrl;
+			$postedArticle->coverpic = $newUrl;
 		} else {
-			$posted->coverpic = '';
+			$postedArticle->coverpic = '';
 		}
 		/**
 		 * 替换文章中的图片
 		 */
-		if (!empty($posted->body)) {
-			$posted->body = urldecode($posted->body);
-			foreach ($posted->bodyimgs as $img) {
+		if (!empty($postedArticle->body)) {
+			$postedArticle->body = urldecode($postedArticle->body);
+			foreach ($postedArticle->bodyimgs as $img) {
 				/* 将图片保存到本地 */
 				$newUrl = $this->storeUrl($mpid, $img);
 				if ($newUrl === false) {
 					return new \ResponseError('图片' . $img . '转存失败');
 				}
-
 				/* 替换正文中的url*/
-				$posted->body = str_replace($img, $newUrl, $posted->body);
+				$postedArticle->body = str_replace($img, $newUrl, $postedArticle->body);
 			}
 		} else {
-			$posted->body = '';
+			$postedArticle->body = '';
 		}
-
 		/**
 		 * 创建单图文
 		 */
+		$current = time();
 		$d['mpid'] = $mpid;
 		$d['creater'] = '';
 		$d['creater_src'] = 'I';
 		$d['creater_name'] = 'crccre';
-		$d['author'] = isset($posted->author) ? $posted->author : 'crccre';
+		$d['author'] = isset($postedArticle->author) ? $postedArticle->author : 'crccre';
 		$d['create_at'] = $current;
 		$d['modify_at'] = $current;
-		$d['title'] = $posted->title;
-		$d['pic'] = $posted->coverpic;
+		$d['title'] = $postedArticle->title;
+		$d['pic'] = $postedArticle->coverpic;
 		$d['hide_pic'] = 'Y';
-		$d['summary'] = isset($posted->summary) ? $posted->summary : '';
-		$d['url'] = isset($posted->srcurl) ? $posted->srcurl : '';
-		$d['body'] = $this->model()->escape($posted->body);
+		$d['summary'] = isset($postedArticle->summary) ? $postedArticle->summary : '';
+		$d['url'] = isset($postedArticle->srcurl) ? $postedArticle->srcurl : '';
+		$d['body'] = $this->model()->escape($postedArticle->body);
 
 		$id = $this->model()->insert('xxt_article', $d, true);
 
