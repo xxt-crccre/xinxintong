@@ -33,13 +33,16 @@ $sql .= ",receiver_page varchar(20) not null";
 $sql .= ",remark_notice_page varchar(20) not null";
 $sql .= ',form_code_id int not null default 0'; // 表单页
 $sql .= ",open_lastroll char(1) not null default 'Y'"; // 打开最后一条登记记录，还是编辑新的
-$sql .= ",multi_rounds char(1) not null default 'Y"; // 支持轮次
+$sql .= ",multi_rounds char(1) not null default 'Y'"; // 支持轮次
 $sql .= ",can_like_record char(1) not null default 'N'"; // 支持对登记记录点赞
 $sql .= ",can_remark_record char(1) not null default 'N'"; // 支持对登记记录评论
 $sql .= ",can_signin char(1) not null default 'N'"; // 是否支持签到
 $sql .= ",can_lottery char(1) not null default 'N'"; // 是否支持抽奖 
 $sql .= ",remark_notice char(1) not null default 'N'";
 $sql .= ",tags text";
+$sql .= ",read_num int not null default 0"; // 阅读数
+$sql .= ",share_friend_num int not null default 0"; // 分享给好友数
+$sql .= ",share_timeline_num int not null default 0"; // 分享朋友圈数
 $sql .= ',primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8';
 if (!$mysqli->query($sql)) {
     header('HTTP/1.0 500 Internal Server Error');

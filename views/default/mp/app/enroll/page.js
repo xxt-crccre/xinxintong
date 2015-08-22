@@ -150,7 +150,7 @@
                 html += ' class="form-control">';
                 break;
             case '4':
-                html += '<textarea ng-model="data.' + key + '" title="' + def.name + '"';
+                html += '<textarea style="height:auto" ng-model="data.' + key + '" title="' + def.name + '"';
                 def.showname === 'placeholder' && (html += ' placeholder="' + def.name + '"');
                 def.required == 1 && (html += 'required=""');
                 html += ' class="form-control" rows="3"></textarea>';
@@ -265,7 +265,7 @@
         var dataApi, onclick, html;
         dataApi = def.dataScope === 'A' ? "Record.nextPage()" : "Record.nextPage('user')";
         onclick = def.onclick.length ? " ng-click=\"gotoPage($event,'" + def.onclick + "',r.enroll_key)\"" : '';
-        html = '<ul class="list-group" infinite-scroll="' + dataApi + '" infinite-scroll-disabled="Record.busy" infinite-scroll-distance="1">';
+        html = '<ul class="list-group" ng-init="requireRecordList=\'' + (def.dataScope === 'A' ? "" : "user") + '\'"infinite-scroll="' + dataApi + '" infinite-scroll-disabled="Record.busy" infinite-scroll-distance="1">';
         html += '<li class="list-group-item" ng-repeat="r in Record.list"' + onclick + '>';
         if (def.addEnrollAt)
             html += "<div wrap='static' class='wrap-inline'><label>登记时间</label><div>{{r.enroll_at*1000|date:'yyyy-MM-dd HH:mm'}}</div></div>";
@@ -354,7 +354,7 @@
     var EmbedButtonSchema = {
         _args: function (def) { return def.next ? "($event,'" + def.next + "')" : "($event)" },
         submit: { id: 'btnSubmit', act: function (def) { return 'submit' + EmbedButtonSchema._args(def); } },
-        addRecord: { id: 'btnNewRecord', act: function (def) { return 'addRecord($evnet)' } },
+        addRecord: { id: 'btnNewRecord', act: function (def) { return 'addRecord($event)' } },
         editRecord: { id: 'btnEditRecord', act: "editRecord($event)" },
         likeRecord: { id: 'btnLikeRecord', act: "likeRecord($event)" },
         //remarkRecord: { id: 'btnRemarkRecord', act: '' },
@@ -683,7 +683,12 @@
             }
         };
         $scope.$on('tinymce.multipleimage.open', function (event, callback) {
-            $scope.$broadcast('picgallery.open', callback, true, true);
+            var options = {
+                callback: callback,
+                multiple: true,
+                setshowname: true
+            }
+            $scope.$broadcast('mediagallery.open', options);
         });
         $scope.addPage = function () {
             http2.get('/rest/mp/app/enroll/addPage?aid=' + $scope.aid, function (rsp) {

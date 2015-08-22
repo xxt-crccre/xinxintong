@@ -99,7 +99,7 @@
             });
         });
         $scope.viewUser = function (fan) {
-            location.href = '/rest/mp/user?fid=' + fan.fid;
+            location.href = '/rest/mp/user?openid=' + fan.openid;
         };
         $scope.keywordKeyup = function (evt) {
             evt.which === 13 && $scope.doSearch();
@@ -156,7 +156,7 @@
                     cols: function () { return $scope.cols; }
                 }
             }).result.then(function (updated) {
-                var p = updated[0], tags = updated[1].join(',');
+                var p = updated[0], tags = updated[1];
                 if ($scope.editing.tags.length !== tags.length) {
                     $scope.editing.tags = tags;
                     $scope.update('tags');

@@ -50,10 +50,12 @@ formApp.factory('Record', function ($http) {
         url += '&page=' + ins.page;
         url += '&size=10';
         $http.get(url).success(function (rsp) {
-            if (rsp.data[0] && rsp.data[0].length) {
-                for (var i = 0; i < rsp.data[0].length; i++)
-                    ins.list.push(rsp.data[0][i]);
-                ins.page++;
+            if (rsp.err_code == 0) {
+                if (rsp.data[0] && rsp.data[0].length) {
+                    for (var i = 0; i < rsp.data[0].length; i++)
+                        ins.list.push(rsp.data[0][i]);
+                    ins.page++;
+                }
             }
             ins.busy = false;
         });
@@ -407,6 +409,14 @@ formApp.controller('formCtrl', ['$location', '$scope', '$http', '$timeout', '$q'
     $scope.openMatter = function (id, type) {
         location.href = '/rest/mi/matter?mpid=' + $scope.mpid + '&id=' + id + '&type=' + type;
     };
+    $scope.$watch('requireRecordList', function (nv) {
+        if (nv && nv.length) {
+            if ($scope.Record)
+                $scope.Record.nextPage(nv);
+            else
+                $scope.requireRecordList = nv;
+        }
+    });
     $scope.$watch('pageName', function (nv) {
         if (!nv) return;
         var url;
@@ -477,6 +487,9 @@ formApp.controller('formCtrl', ['$location', '$scope', '$http', '$timeout', '$q'
             }
             $scope.params = params;
             $scope.ready = true;
+            if ($scope.requireRecordList) {
+                $scope.Record.nextPage($scope.requireRecordList);
+            }
             console.log('page ready', $scope.params);
         });
     });

@@ -5,17 +5,6 @@ include_once dirname(__FILE__).'/xxt_base.php';
  */
 class member_base extends xxt_base {
     /**
-     * 设置代表用户认真身份的cookie
-     */
-    protected function setCookie4Member($mpid, $authid, $mid) 
-    {
-        $authapi = $this->model('user/authapi')->byId($authid, 'validity');
-        $key = $this->getCookieKey($mpid);
-        $encoded = $this->model()->encrypt($mid, 'ENCODE', $key);
-        $expireAt = $authapi->validity == 0 ? null : time()+(86400*(int)$authapi->validity);
-        $this->mySetCookie("_{$mpid}_{$authid}_member", $encoded, $expireAt);
-    }
-    /**
      * 
      */
     protected function getCookieKey($mpid) 
@@ -25,6 +14,17 @@ class member_base extends xxt_base {
             die('invalid parameters.');
 
         return md5($mpid.$mpCreater);
+    }
+    /**
+     * 设置代表用户认真身份的cookie
+     */
+    protected function setCookie4Member($mpid, $authid, $mid) 
+    {
+        $authapi = $this->model('user/authapi')->byId($authid, 'validity');
+        $key = $this->getCookieKey($mpid);
+        $encoded = $this->model()->encrypt($mid, 'ENCODE', $key);
+        $expireAt = $authapi->validity == 0 ? null : time()+(86400*(int)$authapi->validity);
+        $this->mySetCookie("_{$mpid}_{$authid}_member", $encoded, $expireAt);
     }
     /**
      * 判断是否为注册用户的条件是
@@ -51,7 +51,8 @@ class member_base extends xxt_base {
                         'xxt_member', 
                         "authapi_id=$authid and mid='$mid' and forbidden='N'"
                     );
-                    $member = $this->model()->query_obj_ss($q) && $members[] =  $member;
+                    if ($member = $this->model()->query_obj_ss($q))
+                        $members[] =  $member;
                 }
             }
         }
@@ -95,46 +96,65 @@ class member_base extends xxt_base {
      * $matter
      * $checkAccessControl
      */
-    protected function &getUser($mpid, $sAuthapis = null, $openid = '', $matter = null)
+    protected function &getUser($mpid, $options = array())
     {
+        $sAuthapis = isset($options['authapis']) ? $options['authapis'] : null;
+        $openid = isset($options['openid']) ? $options['openid'] : '';
+        $matter = isset($options['matter']) ? $options['matter'] : null;
+        // return value
+        $user = new \stdClass;
         /**
-         * 当前用户在cookie中的记录
+         * 获得当前用户的访客id
+         */
+        $vid = $this->getVisitorId($mpid);
+        $user->vid = $vid;
+        /**
+         * 获得当前用户的openid
          */
         empty($openid) && $openid = $this->getCookieOAuthUser($mpid);
+        if (!$this->getClientSrc() && empty($openid) && !empty($sAuthapis)) {
+            /**
+             * 如果是非微信，易信客户端访问，无法通过OAuth获得openid，检查是否可以通过cookie中的认证用户信息获得openid
+             */
+            $aAuthapis = explode(',', $sAuthapis);
+            $members = $this->getCookieMember($mpid, $aAuthapis);
+            !empty($members) && $openid = $members[0]->openid;
+        }
+        $user->openid = $openid;
         /**
-         * 所有用户认证信息
+         * 用户详细信息
          */
-        $members = $this->getMembersByMpid($mpid, $sAuthapis, $openid);
-        /**
-         * 限定的用户认证身份
-         */
-        if ($matter && isset($matter->access_control) && $matter->access_control === 'Y') {
-            $membersInAcl = array();
-            foreach ($members as $member) {
-                if ($this->canAccessObj($mpid, $matter->id, $member, $sAuthapis, $matter)) {
-                    $membersInAcl[] = $member;
+        if (isset($options['verbose'])) {
+            if (isset($options['verbose']['member'])) {
+                /**
+                 * 用户认证身份
+                 */
+                $members = $this->getMembersByMpid($mpid, $sAuthapis, $openid);
+                if ($matter && isset($matter->access_control) && $matter->access_control === 'Y') {
+                    $membersInAcl = array();
+                    foreach ($members as $member) {
+                        if ($this->canAccessObj($mpid, $matter->id, $member, $sAuthapis, $matter)) {
+                            $membersInAcl[] = $member;
+                        }
+                    }
                 }
+                $user->members = $members;
+                isset($membersInAcl) && $user->membersInAcl = $membersInAcl;
+            }
+            if (isset($options['verbose']['fan'])) {
+                /**
+                 * 关注用户信息
+                 */
+                if (empty($openid) && !empty($members)) {
+                    $fan = $this->model('user/fans')->byMid($members[0]->mid, '*'); 
+                    $openid = $fan->openid;
+                } else if (!empty($openid))
+                    $fan = $this->model('user/fans')->byOpenid($mpid, $openid);
+                else
+                    $fan = null;
+                $user->fan = $fan;
             }
         }
-        /**
-         * 关注用户信息
-         */
-        if (empty($openid) && !empty($members)) {
-            $fan = $this->model('user/fans')->byMid($members[0]->mid, '*'); 
-            $openid = $fan->openid;
-        } else if (!empty($openid))
-            $fan = $this->model('user/fans')->byOpenid($mpid, $openid);
-        else
-            $fan = null;
-        
-        $vid = $this->getVisitorId($mpid);
-
-        $user = new \stdClass;
-        $user->vid = $vid;
-        $user->openid = $openid;
-        $user->fan = $fan;
-        $user->members = $members;
-        isset($membersInAcl) && $user->membersInAcl = $membersInAcl;
 
         return $user;
     }
@@ -256,7 +276,6 @@ class member_base extends xxt_base {
     {
         $aAuthapis = explode(',', $authapis);
         $members = $this->authenticate($runningMpid, $aAuthapis, $targetUrl, $openid);
-
         $passed = false;
         foreach ($members as $member) {
             if ($this->canAccessObj($runningMpid, $objId, $member, $authapis, $obj)) {
@@ -407,18 +426,18 @@ class member_base extends xxt_base {
      */
     protected function getCookieOAuthUser($mpid)
     {
-        if ($user = $this->myGetcookie("_{$mpid}_oauth")) {
-            $user = $this->model()->encrypt($user, 'DECODE', $mpid);
-            if (0===strpos($user,'[')) {
-                $user = json_decode($user);
-                $user = $user[0];
-                $this->setCookieOAuthUser($mpid, $user);
+        if ($openid = $this->myGetcookie("_{$mpid}_oauth")) {
+            $openid = $this->model()->encrypt($openid, 'DECODE', $mpid);
+            if (0===strpos($openid,'[')) {
+                $openid = json_decode($openid);
+                $openid = $openid[0];
+                $this->setCookieOAuthUser($mpid, $openid);
             }
         } else {
-            $user ='';
+            $openid = '';
         }
 
-        return $user;
+        return $openid;
     }
     /**
      *

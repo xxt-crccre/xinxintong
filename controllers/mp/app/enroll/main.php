@@ -134,6 +134,10 @@ class main extends \mp\app\app_base {
      */
     public function create_action() 
     {
+        $account = \TMS_CLIENT::account();
+        if ($account === false)
+            return new \ResponseError('长时间未操作，请重新登陆！');
+            
         $uid = \TMS_CLIENT::get_client_uid();
         $mpa = $this->model('mp\mpaccount')->getFeatures($this->mpid, 'heading_pic');
         /**
@@ -146,7 +150,7 @@ class main extends \mp\app\app_base {
         $newone['pic'] = $mpa->heading_pic;
         $newone['creater'] = $uid;
         $newone['creater_src'] = 'A';
-        $newone['creater_name'] = \TMS_CLIENT::account()->nickname;
+        $newone['creater_name'] = $account->nickname;
         $newone['create_at'] = time();
         $newone['entry_rule'] = "{}";
         /**
@@ -171,8 +175,12 @@ class main extends \mp\app\app_base {
      */
     public function copy_action($aid=null, $shopid=null)
     {
+        $account = \TMS_CLIENT::account();
+        if ($account === false)
+            return new \ResponseError('长时间未操作，请重新登陆！');
+            
         $uid = \TMS_CLIENT::get_client_uid();
-        $uname = \TMS_CLIENT::account()->nickname;
+        $uname = $account->nickname;
         $current = time();
         $enrollModel = $this->model('app\enroll');
         $codeModel = $this->model('code/page');
@@ -452,134 +460,6 @@ class main extends \mp\app\app_base {
         return new \ResponseData($rst);
     }
     /**
-     * 参与抽奖的人
-     *
-     * todo 临时
-     */
-    public function lotteryRoll_action($aid, $rid) 
-    {
-        $result = $this->model('app\enroll')->getLotteryRoll($aid, $rid);
-
-        return new \ResponseData($result);
-    }
-    /**
-     * 抽奖的轮次 
-     *
-     * todo 临时
-     */
-    public function lotteryRounds_action($aid) 
-    {
-        $result = $this->model('app\enroll')->getLotteryRounds($aid);
-
-        return new \ResponseData($result);
-    }
-    /**
-     * 抽奖的轮次 
-     *
-     * todo 临时
-     */
-    public function addLotteryRound_action($aid) 
-    {
-        $r = array(
-            'aid'=>$aid,
-            'round_id'=>uniqid(),
-            'create_at'=>time(),
-            'title'=>'新轮次',
-            'targets'=>'',
-        );
-        $this->model()->insert('xxt_enroll_lottery_round', $r, false);
-
-        return new \ResponseData($r);
-    }
-    /**
-     * 抽奖的轮次 
-     *
-     * todo 临时
-     */
-    public function updateLotteryRound_action($aid, $rid) 
-    {
-        $nv = $this->getPostJson();
-
-        if (isset($nv->targets)) $nv->targets = $this->model()->escape($nv->targets);
-
-        $rst = $this->model()->update(
-            'xxt_enroll_lottery_round', 
-            (array)$nv, 
-            "aid='$aid' and round_id='$rid'" 
-        );
-
-        return new \ResponseData($rst);
-    }
-    /**
-     * 抽奖的轮次 
-     *
-     * todo 临时
-     */
-    public function removeLotteryRound_action($aid, $rid) 
-    {
-        /**
-         * 已过已经有抽奖数据不允许删除
-         */
-        $q = array(
-            'count(*)',
-            'xxt_enroll_lottery',
-            "aid='$aid' and round_id='$rid'" 
-        );
-        if (0 < (int)$this->model()->query_val_ss($q)) 
-            return new \ResponseError('已经有抽奖数据，不允许删除轮次！');
-
-        $rst = $this->model()->delete(
-            'xxt_enroll_lottery_round', 
-            "aid='$aid' and round_id='$rid'" 
-        );
-
-        return new \ResponseData($rst);
-    }
-    /**
-     * 中奖的人
-     *
-     * todo 临时
-     */
-    public function lotteryWinners_action($aid, $rid=null) 
-    {
-        $result = $this->model('app\enroll')->getLotteryWinners($aid, $rid);
-
-        return new \ResponseData($result);
-    }
-    /**
-     * 抽奖
-     *
-     * todo 临时
-     */
-    public function lottery_action($aid, $rid, $ek)
-    {
-        $fans = $this->getPostJson();
-
-        $i = array(
-            'aid'=>$aid,
-            'round_id'=>$rid,
-            'enroll_key'=>$ek,
-            'openid'=>$fans->openid,
-            'src'=>$fans->src,
-            'draw_at'=>time()
-        );
-
-        $this->model()->insert('xxt_enroll_lottery', $i, false);
-
-        return new \ResponseData('success');
-    }
-    /**
-     * 清空参与抽奖的人
-     *
-     * todo 临时
-     */
-    public function lotteryClean_action($aid) 
-    {
-        $rst = $this->model()->delete('xxt_enroll_lottery', "aid='$aid'");
-
-        return new \ResponseData($result);
-    }
-    /**
      * 删除一个活动
      *
      * 如果没有报名数据，就将活动彻底删除
@@ -699,22 +579,5 @@ class main extends \mp\app\app_base {
         );
 
         return new \ResponseData($ret);
-    }
-    /**
-     *
-     */
-    public function accesslogGet_action($aid)
-    {
-        $stat = new \stdClass;
-        
-        $q = array(
-            "sum(act_read) 'read',sum(act_share_friend) share_to_friend,sum(act_share_timeline) share_to_timeline",
-            'xxt_log_matter_action',
-            "matter_type='enroll' and matter_id='$aid'"
-        );
-        
-        $stat = $this->model()->query_obj_ss($q); 
-        
-        return new \ResponseData($stat); 
     }
 }
