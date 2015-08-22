@@ -183,6 +183,7 @@ class auth extends crccre_member_base2 {
             'authapi_id'=>$authid,
             'authed_identity'=>$username,
             'name'=>$user['title'],
+            'verified'=>'Y',
             //'depts'=>json_encode(array($deptids)),
             'extattr'=>json_encode($user)
         );
