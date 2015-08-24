@@ -518,7 +518,7 @@ class qyauth extends \member_base {
 	 * $mpid
 	 * $authid
 	 */
-	public function sync2Qy_action($mpid, $authid) {
+	public function sync2Qy_action($mpid, $authid, $verbose = 'N') {
 		/**
 		 * 更新时间戳
 		 */
@@ -549,7 +549,9 @@ class qyauth extends \member_base {
 					'department' => array($parentNode['id']),
 				);
 				$rst = $proxy->userCreate($user['useraccount'], $user);
-				$result[] = array($log, $rst);
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
 				break;
 			case '2': // 修改用户
 			case '4': // 迁移用户（阴影部分的parentguid是您唯一需要修改的数据，用户迁移只修改了它的父节点）
@@ -563,11 +565,15 @@ class qyauth extends \member_base {
 					'department' => array($parentNode['id']),
 				);
 				$rst = $proxy->userUpdate($user['useraccount'], $user);
-				$result[] = array($log, $rst);
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
 				break;
 			case '3': // 删除用户
 				$rst = $proxy->userDelete($log['useraccount']);
-				$result[] = array($log, $rst);
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
 				break;
 			case '5': // 新建组织
 				$deptNode = $modelOrg->getNodeByGUID($log['guid']);
@@ -579,17 +585,23 @@ class qyauth extends \member_base {
 					'order' => $deptNode['orderid'],
 				);
 				$rst = $proxy->departmentCreate($dept['title'], $dept['pid'], $dept['order'], $dept['id']);
-				$result[] = array($log, $rst);
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
 				break;
 			case '6': // 更新组织
 				$deptNode = $modelOrg->getNodeByGUID($log['guid']);
 				$rst = $proxy->departmentUpdate($deptNode['id'], $deptNode['title']);
-				$result[] = array($log, $rst);
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
 				break;
 			case '7': // 删除组织
 				$deptNode = $modelOrg->getNodeByGUID($log['guid']);
 				$rst = $proxy->departmentDelete($deptNode['id']);
-				$result[] = array($log, $rst);
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
 				break;
 			case '8': // 虚拟组织添加子节点
 				break;
@@ -606,6 +618,8 @@ class qyauth extends \member_base {
 			case '-3': // 应用程序用户规则调整
 				break;
 			case '-4': // 虚拟角色组织更新
+				break;
+			case '-6': //
 				break;
 			}
 		}

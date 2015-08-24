@@ -121,6 +121,7 @@ class org_model extends TMS_MODEL {
 	 *
 	 */
 	public function getOperationHistorysByTime($after) {
+		$nodes = array();
 		$param = new stdClass;
 		$param->year = (int) date('Y', $after);
 		$param->month = (int) date('n', $after);
