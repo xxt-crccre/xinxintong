@@ -513,6 +513,26 @@ class qyauth extends \member_base {
 		return new \ResponseData(array('existDepts' => $existDepts, 'existUsers' => $existUsers, 'uploadUsers' => $uploadUsers, 'warning' => $warning));
 	}
 	/**
+	 *
+	 */
+	private function syncUpdateUser($mpid, $log) {
+		$proxy = $this->model('mpproxy/qy', $mpid);
+		$modelOrg = $this->model('cus/org');
+
+		$parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
+		$mobile = empty($log['mobile']) ? '151' . rand(1000, 9999) . '0000' : $log['mobile'];
+		$user = array(
+			'guid' => $log['guid'],
+			'useraccount' => $log['useraccount'],
+			'name' => $log['title'],
+			'mobile' => $mobile,
+			'department' => array($parentNode['id']),
+		);
+		$rst = $proxy->userUpdate($user['useraccount'], $user);
+
+		return $rst;
+	}
+	/**
 	 * 将内部组织结构数据增量导入到企业号通讯录
 	 *
 	 * $mpid
@@ -539,32 +559,47 @@ class qyauth extends \member_base {
 		foreach ($logs as $log) {
 			switch ($log['operation']) {
 			case '1': // 新建用户
-				$parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
-				$mobile = empty($log['mobile']) ? '151' . rand(1000, 9999) . '0000' : $log['mobile'];
-				$user = array(
-					'guid' => $log['guid'],
-					'useraccount' => $log['useraccount'],
-					'name' => $log['title'],
-					'mobile' => $mobile,
-					'department' => array($parentNode['id']),
-				);
-				$rst = $proxy->userCreate($user['useraccount'], $user);
-				if ($verbose === 'Y' || $rst[0] === false) {
+				if (!empty($log['useraccount'])) {
+					$parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
+					$mobile = empty($log['mobile']) ? '151' . rand(1000, 9999) . '0000' : $log['mobile'];
+					$user = array(
+						'guid' => $log['guid'],
+						'useraccount' => $log['useraccount'],
+						'name' => $log['title'],
+						'mobile' => $mobile,
+						'department' => array($parentNode['id']),
+					);
+					$rst = $proxy->userCreate($user['useraccount'], $user);
+					if ($verbose === 'Y' || $rst[0] === false) {
+						$result[] = array($log, $rst);
+					}
+				} else if ($verbose === 'Y') {
 					$result[] = array($log, $rst);
 				}
 				break;
 			case '2': // 修改用户
-			case '4': // 迁移用户（阴影部分的parentguid是您唯一需要修改的数据，用户迁移只修改了它的父节点）
-				$parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
-				$mobile = empty($log['mobile']) ? '151' . rand(1000, 9999) . '0000' : $log['mobile'];
-				$user = array(
-					'guid' => $log['guid'],
-					'useraccount' => $log['useraccount'],
-					'name' => $log['title'],
-					'mobile' => $mobile,
-					'department' => array($parentNode['id']),
-				);
-				$rst = $proxy->userUpdate($user['useraccount'], $user);
+				if (!empty($log['useraccount']) && empty($log['useraccountold'])) {
+					$parentNode = $modelOrg->getNodeByGUID($log['parentguid']);
+					$mobile = empty($log['mobile']) ? '151' . rand(1000, 9999) . '0000' : $log['mobile'];
+					$user = array(
+						'guid' => $log['guid'],
+						'useraccount' => $log['useraccount'],
+						'name' => $log['title'],
+						'mobile' => $mobile,
+						'department' => array($parentNode['id']),
+					);
+					$rst = $proxy->userCreate($user['useraccount'], $user);
+				} else {
+					$rst = $this->syncUpdateUser($mpid, $log);
+				}
+				if ($verbose === 'Y' || $rst[0] === false) {
+					$result[] = array($log, $rst);
+				}
+				break;
+			case '4': // 迁移用户
+			case '10': // 给员工添加岗位
+			case '11': // 移除用户某岗位
+				$rst = $this->syncUpdateUser($mpid, $log);
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst);
 				}
@@ -586,14 +621,14 @@ class qyauth extends \member_base {
 				);
 				$rst = $proxy->departmentCreate($dept['title'], $dept['pid'], $dept['order'], $dept['id']);
 				if ($verbose === 'Y' || $rst[0] === false) {
-					$result[] = array($log, $rst);
+					$result[] = array($log, $rst, $dept);
 				}
 				break;
 			case '6': // 更新组织
 				$deptNode = $modelOrg->getNodeByGUID($log['guid']);
 				$rst = $proxy->departmentUpdate($deptNode['id'], $deptNode['title']);
 				if ($verbose === 'Y' || $rst[0] === false) {
-					$result[] = array($log, $rst);
+					$result[] = array($log, $rst, $deptNode['title']);
 				}
 				break;
 			case '7': // 删除组织
@@ -607,8 +642,6 @@ class qyauth extends \member_base {
 				break;
 			case '9': // 虚拟组织移除子节点
 				break;
-			case '10': // 给员工添加岗位
-				break;
 			case '0': // 新建虚拟根节点
 				break;
 			case '-1': // 删除虚拟根节点
@@ -619,7 +652,7 @@ class qyauth extends \member_base {
 				break;
 			case '-4': // 虚拟角色组织更新
 				break;
-			case '-6': //
+			case '-6': // 在AD里启用该用户帐号
 				break;
 			}
 		}
