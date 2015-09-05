@@ -9,7 +9,7 @@ xxtApp.config(['$routeProvider', function($rp) {
             load: function($q) {
                 var defer = $q.defer();
                 (function() {
-                    $.getScript('/views/default/mp/app/merchant/catelog.js', function() {
+                    $.getScript('/views/default/mp/app/merchant/catelog.js?_=1', function() {
                         defer.resolve();
                     });
                 })();
@@ -23,7 +23,7 @@ xxtApp.config(['$routeProvider', function($rp) {
             load: function($q) {
                 var defer = $q.defer();
                 (function() {
-                    $.getScript('/views/default/mp/app/merchant/product.js', function() {
+                    $.getScript('/views/default/mp/app/merchant/product.js?_=1', function() {
                         defer.resolve();
                     });
                 })();
@@ -44,6 +44,9 @@ xxtApp.config(['$routeProvider', function($rp) {
 xxtApp.controller('shopCtrl', ['$scope', 'http2', '$location', function($scope, http2, $location) {
     $scope.shopId = $location.search().shopId;
     $scope.subView = '';
+    http2.get('/rest/mp/mpaccount/get', function(rsp) {
+        $scope.mpaccount = rsp.data;
+    });
 }]);
 xxtApp.controller('settingCtrl', ['$scope', 'http2', function($scope, http2) {
     $scope.$parent.subView = 'setting';
@@ -54,6 +57,7 @@ xxtApp.controller('settingCtrl', ['$scope', 'http2', function($scope, http2) {
     };
     http2.get('/rest/mp/app/merchant/shop/get?id=' + $scope.shopId, function(rsp) {
         $scope.editing = rsp.data;
+        $scope.editing.canSetSupporter = 'Y';  
     });
 }]);
 xxtApp.controller('groupCtrl', ['$scope', 'http2', function($scope, http2) {
