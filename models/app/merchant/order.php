@@ -21,12 +21,14 @@ class order_model extends \TMS_MODEL {
 	/**
 	 * $id
 	 */
-	public function &byShopid($shopId) {
+	public function &byShopid($shopId, $openid = null) {
 		$q = array(
 			'*',
 			'xxt_merchant_order',
 			"sid=$shopId",
 		);
+		!empty($openid) && $q[2] .= " and buyer_openid='$openid'";
+
 		$q2 = array(
 			'o' => 'order_create_time desc',
 		);
@@ -41,6 +43,16 @@ class order_model extends \TMS_MODEL {
 	public function create($skuId, $user, $info) {
 		$sku = \TMS_APP::M('app\merchant\sku')->byId($skuId);
 
+		if (empty($info->extPropValues)) {
+			$epv = '{}';
+		} else {
+			$epv = new \stdClass;
+			foreach ($info->extPropValues as $k => $v) {
+				$epv->{$k} = urlencode($v);
+			}
+			$epv = urldecode(json_encode($epv));
+		}
+
 		$order = array(
 			'mpid' => $sku->mpid,
 			'sid' => $sku->sid,
@@ -48,6 +60,7 @@ class order_model extends \TMS_MODEL {
 			'order_total_price' => $info->product_count * $sku->price,
 			'order_create_time' => time(),
 			'order_express_price' => 0,
+			'ext_prop_value' => $epv,
 			'buyer_openid' => $user->openid,
 			'buyer_nick' => $user->fan->nickname,
 			'receiver_name' => $info->receiver_name,

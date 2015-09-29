@@ -15,6 +15,12 @@ class matter extends \member_base {
 		return $rule_action;
 	}
 	/**
+	 *
+	 */
+	protected function canAccessObj($mpid, $matterId, $member, $authapis, &$matter) {
+		return $this->model('acl')->canAccessMatter($mpid, $matter->type, $matterId, $member, $authapis);
+	}
+	/**
 	 * 打开指定的素材
 	 *
 	 * 这个接口是由浏览器直接调动，不能可靠提供关注用户（openid）信息
@@ -50,18 +56,20 @@ class matter extends \member_base {
 		/**
 		 * visit fans.
 		 */
-		$ooid = empty($who) ? $this->getCookieOAuthUser($mpid) : $who;
+		$ooid = empty($who) ? $this->getCookieOAuthUser($mpid)->openid : $who;
 		/**
 		 * 根据类型获得处理素材的对象
 		 */
 		switch ($type) {
 		case 'article':
-			if (isset($_GET['tpl']) && $_GET['tpl'] === 'std') {
-				\TPL::output('article');
+			if (isset($_GET['tpl']) && $_GET['tpl'] === 'cus') {
+				\TPL::output('custom');
 				exit;
 			} else {
-				require_once dirname(__FILE__) . '/page_article.php';
-				$page = new page_article($id, $ooid, $shareby);
+				//require_once dirname(__FILE__) . '/page_article.php';
+				//$page = new page_article($id, $ooid, $shareby);
+				\TPL::output('article');
+				exit;
 			}
 			break;
 		case 'news':
@@ -137,9 +145,13 @@ class matter extends \member_base {
 	 * 记录访问日志
 	 */
 	public function logAccess_action($mpid, $id, $type, $title = '', $shareby = '') {
-		$posted = $this->getPostJson();
-
-		$user = $this->getUser($mpid, array('verbose' => array('fan' => 'Y')));
+		/* support CORS */
+		header('Access-Control-Allow-Origin:*');
+		header('Access-Control-Allow-Methods:POST');
+		header('Access-Control-Allow-Headers:Content-Type');
+		if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+			exit;
+		}
 
 		switch ($type) {
 		case 'article':
@@ -152,24 +164,11 @@ class matter extends \member_base {
 			$this->model()->update("update xxt_news set read_num=read_num+1 where id='$id'");
 			break;
 		}
-		$logUser = new \stdClass;
-		$logUser->vid = $user->vid;
-		$logUser->openid = empty($user->fan) ? '' : $user->openid;
-		$logUser->nickname = empty($user->fan) ? '' : $user->fan->nickname;
 
-		$logMatter = new \stdClass;
-		$logMatter->id = $id;
-		$logMatter->type = $type;
-		$logMatter->title = $title;
+		$posted = $this->getPostJson();
+		$user = $this->getUser($mpid);
 
-		$logClient = new \stdClass;
-		$logClient->agent = $_SERVER['HTTP_USER_AGENT'];
-		$logClient->ip = $this->client_ip();
-
-		$search = isset($posted->search) ? $posted->search : '';
-		$referer = isset($posted->referer) ? $posted->referer : '';
-
-		$this->model('log')->writeMatterRead($mpid, $logUser, $logMatter, $logClient, $shareby, $search, $referer);
+		$this->logRead($mpid, $user, $id, $type, $title, $shareby = '');
 
 		return new \ResponseData('ok');
 	}
@@ -185,6 +184,8 @@ class matter extends \member_base {
 	 *
 	 */
 	public function logShare_action($shareid, $mpid, $id, $type, $title, $shareto, $shareby = '') {
+		header('Access-Control-Allow-Origin:*');
+
 		switch ($type) {
 		case 'article':
 			$table = 'xxt_article';
@@ -205,7 +206,6 @@ class matter extends \member_base {
 			} else if ($shareto === 'T') {
 				$this->model()->update("update $table set share_timeline_num=share_timeline_num+1 where id='$id'");
 			}
-
 		}
 
 		$user = $this->getUser($mpid, array('verbose' => array('fan' => 'Y')));
@@ -274,66 +274,5 @@ class matter extends \member_base {
 		header('Access-Control-Allow-Origin:*');
 
 		return new \ResponseData($matters);
-	}
-	/**
-	 *
-	 */
-	protected function canAccessObj($mpid, $matterId, $member, $authapis, &$matter) {
-		return $this->model('acl')->canAccessMatter($mpid, $matter->type, $matterId, $member, $authapis);
-	}
-	/**
-	 * 发送含有链接的邮件
-	 * todo 邮件的内容不应该在代码中写死
-	 */
-	private function send_link_email($mpid, $email, $url, $text = '打开', $code = null) {
-		$mp = $this->model('mp\mpaccount')->byId($mpid);
-
-		$subject = $mp->name . "-链接";
-
-		$content = "<p></p>";
-		$content .= "<p>请点击下面的链接完成操作：</p>";
-		$content .= "<p></p>";
-		$content .= "<p><a href='$url'>$text</a></p>";
-		if (!empty($code)) {
-			$content .= "<p></p>";
-			$content .= "<p>密码：$code</p>";
-		}
-		if (true !== ($msg = $this->send_email($mpid, $subject, $content, $email))) {
-			return $msg;
-		}
-
-		return true;
-	}
-	/**
-	 * 下载文件
-	 *
-	 * todo 仅对会员开放
-	 */
-	public function link_action($mpid, $user, $url, $text, $code) {
-		if ($mid = $this->getMemberId($call)) {
-			$q = array(
-				'email,email_verified',
-				'xxt_member',
-				"mpid='$mpid' and mid='$mid'",
-			);
-			$identity = $this->model()->query_obj_ss($q);
-			if ($identity->email && $identity->email_verified === 'Y') {
-				if (true !== ($msg = $this->send_link_email($mpid, $identity->email, $url, $text, $code))) {
-					return new \ResponseData($msg);
-				} else {
-					$rsp = '已通过【xin_xin_tong@163.com】将链接发送到你的个人邮箱，请在邮件内打开！';
-					return new \ResponseData($rsp);
-				}
-			} else {
-				$rsp = '没有获取邮箱信息，请向指定个人邮箱！';
-				return new \ResponseData($rsp);
-			}
-		} else {
-			/**
-			 * 引导用户进行认证
-			 */
-			$tr = $this->register_reply($call);
-			$tr->exec();
-		}
 	}
 }

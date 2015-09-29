@@ -29,7 +29,7 @@ class main extends \mp\app\app_base {
 			 */
 			$r = $this->model('app\lottery')->byId($lid, '*', array('award', 'task'));
 			$r->url = 'http://' . $_SERVER['HTTP_HOST'] . "/rest/app/lottery?mpid=$r->mpid&lid=$lid";
-			$r->preactivitydone_url = 'http://' . $_SERVER['HTTP_HOST'] . "/rest/app/lottery/preactiondone?mpid=$r->mpid&lid=$lid";
+			$r->pretaskdone_url = 'http://' . $_SERVER['HTTP_HOST'] . "/rest/app/lottery?mpid=$r->mpid&lid=$lid&pretaskdone=Y";
 			/**
 			 * acl
 			 */
@@ -92,6 +92,7 @@ class main extends \mp\app\app_base {
 		$newone['end_at'] = $current + 86400;
 		$newone['nonfans_alert'] = "请先关注公众号，再参与抽奖！";
 		$newone['nochance_alert'] = "您的抽奖机会已经用光了，下次再来试试吧！";
+		$newone['pretaskdesc'] = "请设置前置任务";
 		/**
 		 * 创建定制页
 		 */
@@ -137,7 +138,7 @@ class main extends \mp\app\app_base {
 
 		$keys = array_keys($nv);
 		foreach ($keys as $k) {
-			if (in_array($k, array('nonfans_alert', 'nochance_alert', 'nostart_alert', 'hasend_alert', 'preactivity', 'extra_css', 'extra_ele', 'extra_js'))) {
+			if (in_array($k, array('nonfans_alert', 'nochance_alert', 'nostart_alert', 'hasend_alert', 'pretaskdesc'))) {
 				$nv[$k] = $this->model()->escape($nv[$k]);
 			}
 
@@ -233,87 +234,6 @@ class main extends \mp\app\app_base {
 		$rst = $codeModel->modify($page->id, $data);
 
 		return new \ResponseData($rst);
-	}
-	/**
-	 * 抽奖结果列表
-	 */
-	public function result_action($lid, $startAt = null, $endAt = null, $page = 1, $size = 30, $award = null, $assocAct = null) {
-		$r = $this->model('app\lottery')->byId($lid, 'access_control');
-		if ($r->access_control === 'Y') {
-			$q = array(
-				'l.mid,m.name,m.mobile,m.email,l.draw_at,a.title award_title,l.takeaway',
-				'xxt_lottery_log l,xxt_lottery_award a,xxt_member m',
-				"l.lid='$lid' and l.mid=m.mid and m.forbidden='N' and l.aid=a.aid",
-			);
-		} else {
-			/**
-			 * 参与抽奖的用户不一定是关注用户，所以粉丝表里不一定有对应的记录
-			 */
-			$q = array(
-				"f.nickname,l.openid,l.draw_at,a.title award_title,l.takeaway",
-				"xxt_lottery_log l left join xxt_lottery_award a on l.aid=a.aid left join xxt_fans f on f.mpid='$this->mpid' and l.openid=f.openid",
-				"l.lid='$lid'",
-			);
-		}
-		/**
-		 * 指定时间范围
-		 */
-		if ($startAt !== null && $endAt !== null) {
-			$q[2] .= " and l.draw_at>=$startAt and l.draw_at<=$endAt";
-		}
-
-		/**
-		 * 指定奖项
-		 */
-		if (!empty($award)) {
-			$q[2] .= " and l.aid='$award'";
-		}
-
-		/**
-		 * 排序和分页
-		 */
-		$q2['o'] = 'draw_at desc';
-		$q2['r']['o'] = ($page - 1) * $size;
-		$q2['r']['l'] = $size;
-
-		$result = $this->model()->query_objs_ss($q, $q2);
-		/**
-		 * 总数
-		 */
-		$q[0] = 'count(*)';
-		$amount = $this->model()->query_val_ss($q);
-		/**
-		 * 从关联活动中获得登记数据
-		 * todo 有可能实现批量获取吗？
-		 */
-		if (!empty($assocAct)) {
-			foreach ($result as &$r) {
-				/**
-				 * 获取数据
-				 */
-				$sql = 'select c.name,c.value';
-				$sql .= ' from xxt_enroll_record_data c, xxt_enroll_record e';
-				$sql .= " where e.aid='$assocAct' and c.enroll_key=e.enroll_key";
-				$sql .= " and e.openid='$r->openid'";
-				$cusdata = $this->model()->query_objs($sql);
-				/**
-				 * 组合数据
-				 */
-				foreach ($cusdata as $cd) {
-					$r->assoc->{$cd->name} = $cd->value;
-				}
-
-			}
-			if (isset($cusdata)) {
-				$assocDef = array();
-				foreach ($cusdata as $cd) {
-					$assocDef[] = $cd->name;
-				}
-
-			}
-		}
-
-		return new \ResponseData(array($result, $amount, isset($assocDef) ? $assocDef : array()));
 	}
 	/**
 	 * 抽奖情况统计

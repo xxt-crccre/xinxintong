@@ -1,15 +1,15 @@
-(function(window){
+(function(window) {
     window.PicViewer = function(selector, options) {
 
         options || (options = {});
-        options.log || (options.log = function(msg){});
+        options.log || (options.log = function(msg) {});
 
         var hammertime;
         var vendorPrefixes = ["", "-webkit-", "-moz-", "-o-", "-ms-", "-khtml-"];
         var elImg;
         var viewHeight, viewWidth;
         var minScale, maxScale, currentScale, lastScale, scaleX, scaleY;
-        var lastX,lastY,toX,toY;
+        var lastX, lastY, toX, toY;
 
         var imgHeight = function() {
             return elImg.height * currentScale;
@@ -37,20 +37,19 @@
             }
 
             style = elImg.style, vendor;
-            cssScale = "scale("+ currentScale +")";
-            cssTranslate = 'translate(' + toX +"px, "+ toY +"px)"; //如果xy的值太小有可能使设置无效
-
-            for (var i=0,l=vendorPrefixes.length; i<l; i++) {
+            cssScale = "scale(" + currentScale + ")";
+            cssTranslate = 'translate(' + toX + "px, " + toY + "px)"; //如果xy的值太小有可能使设置无效
+            for (var i = 0, l = vendorPrefixes.length; i < l; i++) {
                 vendor = vendorPrefixes[i];
                 style[vendor + "transform"] = cssTranslate + ' ' + cssScale;
             };
-            options.log(cssTranslate + ' ' + cssScale);
         };
         var setOrigin = function(x, y) {
-            var style = elImg.style, vendor;
-            for (var i=0,l=vendorPrefixes.length;i<l;i++) {
+            var style = elImg.style,
+                vendor;
+            for (var i = 0, l = vendorPrefixes.length; i < l; i++) {
                 vendor = vendorPrefixes[i];
-                style[vendor + "transform-origin"] = x + ' ' + y; 
+                style[vendor + "transform-origin"] = x + ' ' + y;
             };
             style["MozTransformOrigin"] = x + ' ' + y;
         };
@@ -64,83 +63,63 @@
             lastX = lastY = toX = toY = 0;
 
             if (hammertime === undefined) {
-                hammertime = Hammer(elImg, {
-                    preventDefault:true,
-                    swipe:false,
-                    dragMaxTouches:1
-                }).
-                on('tap', function(event){
-                    event.gesture.stopDetect();
+                hammertime = Hammer(elImg, {});
+                hammertime.get('pan').set({
+                    direction: Hammer.DIRECTION_ALL
+                });
+                hammertime.get('pinch').set({
+                    enable: true
+                });
+                hammertime.on('swipeleft', function(event) {
+                    options.next && options.next();
+                }).on('swiperight', function(event) {
+                    options.prev && options.prev();
+                });
+                hammertime.on('pinchstart', function(event) {
                     event.preventDefault();
-                    options.close && options.close();
-                }).
-                on('transformstart', function(event){
+                    scaleX = event.center.x;
+                    scaleY = event.center.y;
+                }).on('pinchmove', function(event) {
                     event.preventDefault();
-                    options.log('transformstart touches:' + event.gesture.touches.length);
-                    options.log('transformstart center.pageX:' + event.gesture.center.pageX);
-                    options.log('transformstart center.pageY:' + event.gesture.center.pageY);
-                    options.log('transformstart center.clientX:' + event.gesture.center.clientX);
-                    options.log('transformstart center.clientY:' + event.gesture.center.clientY);
-                    scaleX = event.gesture.center.pageX;
-                    scaleY = event.gesture.center.pageY;
-                }).
-                on('transform', function(event){
-                    event.preventDefault();
-                    var gesture, deltaScale;
-                    gesture = event.gesture;
-                    deltaScale = gesture.scale;
-                    options.log('transform T:' + gesture.eventType +' scale:' + gesture.scale+',factor:' + currentScale);
+                    var deltaScale;
+                    deltaScale = event.scale;
                     if (lastScale * deltaScale > maxScale) {
                         if (lastScale === maxScale) {
                             return;
                         }
                         deltaScale = maxScale / lastScale;
                     } else if (lastScale * deltaScale < minScale) {
-                        if (lastSacleScale === minScale) {
+                        if (lastScale === minScale) {
                             return;
                         }
                     }
                     currentScale = lastScale * deltaScale;
-                    toX = scaleX - (scaleX - lastX)  * deltaScale;
-                    toY = scaleY - (scaleY - lastY)  * deltaScale;
+                    toX = scaleX - (scaleX - lastX) * deltaScale;
+                    toY = scaleY - (scaleY - lastY) * deltaScale;
                     transform();
-                }).
-                on('transformend', function(event){
-                    event.gesture.stopDetect();
+                }).on('pinchend', function(event) {
                     event.preventDefault();
                     lastScale = currentScale;
                     lastX = toX;
                     lastY = toY;
-                    options.log('transformend');
-                }).
-                on('dragstart', function(event){
-                    options.log('dragstart touches:' + event.gesture.touches.length);
+                });
+                hammertime.on('panstart', function(event) {
                     event.preventDefault();
                     lastX = toX;
                     lastY = toY;
-                }).
-                on('drag', function(event){
+                }).on('panmove', function(event) {
                     var gesture = event.gesture;
                     event.preventDefault();
-                    options.log('drag T:' + gesture.eventType +' X:' + gesture.deltaX + ',Y:' + gesture.deltaY);
-                    toX = lastX + (event.gesture.deltaX / currentScale);
-                    toY = lastY + (event.gesture.deltaY / currentScale);
+                    toX = lastX + (event.deltaX / currentScale);
+                    toY = lastY + (event.deltaY / currentScale);
                     transform();
-                }).
-                on('dragend', function(event){
+                }).on('panend', function(event) {
                     event.preventDefault();
-                    var gesture = event.gesture;
-                    options.log('dragend T:' + gesture.eventType +' X:' + gesture.deltaX + ',Y:' + gesture.deltaY);
+                });
+                hammertime.on('tap', function(event) {
+                    options.close && options.close();
                 });
             }
-
-            options.log('viewWidth:' + viewWidth);
-            options.log('viewHeight:' + viewHeight);
-            options.log('imgWidth:' + elImg.width);
-            options.log('imgHeight:' + elImg.height);
-            options.log('maxScale:' + maxScale);
-            options.log('minScale:' + minScale);
-
             setOrigin(0, 0);
             transform();
         };

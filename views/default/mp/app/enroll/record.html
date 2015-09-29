@@ -32,6 +32,9 @@
                 </span>
             </div>
         </div>
+        <div class='form-group'>
+            <select class='form-control' title="排序条件" ng-model='page.orderBy' ng-options='o.v as o.n for o in orderBys' ng-change='doSearch(1)'></select>
+        </div>
     </div>
     <div id='records'>
         <table class='table table-bordered'>
@@ -45,13 +48,14 @@
                     <th class='custom-col' ng-repeat="c in cols" title="{{c.ops}}">{{c.title}}</th>
                     <th style='width:100px' ng-if="editing.can_signin==='Y'">签到时间</th>
                     <th style='width:140px'>标签</th>
+                    <th style='width:60px' ng-if="editing.can_invite==='Y'">邀请</th>
                     <th style='width:60px' ng-if="editing.can_like_record==='Y'">点赞</th>
                     <th style='width:60px' ng-if="editing.can_remark_record==='Y'">评论</th>
                     <th style='width:72px'>操作</th>
                 </tr>
             </thead>
             <tbody>
-                <tr ng-repeat='r in roll' class='roll'>
+                <tr ng-repeat='r in records' class='record'>
                     <td>
                         <input type='checkbox' ng-model='selected[$index]'>
                     </td>
@@ -60,7 +64,7 @@
                         <a href='javascript:void(0)' xxt-fid='{{r.fid}}' ng-click='viewUser(r)'>{{r.nickname}}</a>
                     </td>
                     <td ng-repeat="c in cols">
-                        <span ng-if="c.id.indexOf('member')===0">{{r.data.member[c.id.split('.')[1]]}}</span>
+                        <span ng-if="c.id.indexOf('member')===0">{{memberAttr(r.data, c.id)}}</span>
                         <span ng-if="c.type!=='img'&&c.type!=='file'">{{value2Label(r.data[c.id], c.id)}}</span>
                         <span ng-if="c.type==='img'" ng-init="imgs=r.data[c.id].split(',')">
                             <img ng-repeat="img in imgs" ng-src='{{img}}' />
@@ -71,6 +75,7 @@
                     </td>
                     <td ng-if="editing.can_signin==='Y'">{{r.signin_at>0 ? ((r.signin_at*1000)|date:'yyyy-MM-dd HH:mm') : ''}}</td>
                     <td>{{r.tags}}</td>
+                    <td ng-if="editing.can_invite==='Y'">{{r.follower_num}}</td>
                     <td ng-if="editing.can_like_record==='Y'">{{r.score}}</td>
                     <td ng-if="editing.can_remark_record==='Y'">{{r.remark_num}}</td>
                     <td>

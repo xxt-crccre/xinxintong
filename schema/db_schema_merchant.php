@@ -23,13 +23,13 @@ if (!$mysqli->query($sql)) {
 	echo 'database error: ' . $mysqli->error;
 }
 /**
- * 登记信息通知接收人
+ * 客服人员
  */
 $sql = "create table if not exists xxt_merchant_staff(";
 $sql .= 'id int not null auto_increment';
 $sql .= ',mpid varchar(32) not null';
-$sql .= ',shopid varchar(40) not null'; // contribute's id
-$sql .= ',role char(1) not null'; // Initiator|Reviewer|Typesetter
+$sql .= ',shopid varchar(40) not null';
+$sql .= ',role char(1) not null';
 $sql .= ',identity varchar(100) not null';
 $sql .= ",idsrc char(2) not null default ''";
 $sql .= ",label varchar(255) not null default ''";
@@ -149,7 +149,7 @@ $sql .= ",modify_at int not null";
 $sql .= ",name varchar(70) not null";
 $sql .= ",main_img text";
 $sql .= ",img text";
-$sql .= ",detail_text varchar(240) not null";
+$sql .= ",detail_text text";
 $sql .= ",detail_img text";
 $sql .= ",buy_limit int not null default 0";
 $sql .= ",status int not null default 0"; // 0:未上架|1:已上架
@@ -218,6 +218,25 @@ if (!$mysqli->query($sql)) {
 	echo 'database error: ' . $mysqli->error;
 }
 /*
+ * 产品订单属性定义
+ */
+$sql = 'create table if not exists xxt_merchant_order_property(';
+$sql .= "id int not null auto_increment";
+$sql .= ",mpid varchar(32) not null";
+$sql .= ',sid int not null'; // shop id
+$sql .= ',cate_id int not null';
+$sql .= ",creater varchar(40) not null";
+$sql .= ",create_at int not null";
+$sql .= ",reviser varchar(40) not null";
+$sql .= ",modify_at int not null";
+$sql .= ",name varchar(255) not null";
+$sql .= ",seq int not null default 0";
+$sql .= ',primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8';
+if (!$mysqli->query($sql)) {
+	header('HTTP/1.0 500 Internal Server Error');
+	echo 'database error: ' . $mysqli->error;
+}
+/*
  * 产品订单
  */
 $sql = 'create table if not exists xxt_merchant_order(';
@@ -228,6 +247,7 @@ $sql .= ',order_status int not null'; // 2-待发货, 3-已发货, 5-已完成, 
 $sql .= ",order_total_price int not null";
 $sql .= ',order_create_time int not null';
 $sql .= ',order_express_price int not null';
+$sql .= ",ext_prop_value text"; // 扩展属性ID及属性值ID
 $sql .= ",buyer_openid varchar(255) not null default ''";
 $sql .= ',buyer_nick varchar(255) not null';
 $sql .= ',receiver_name varchar(255) not null';

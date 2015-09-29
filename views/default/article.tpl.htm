@@ -4,8 +4,8 @@
     <head>
         <meta charset="utf-8">
         <meta content="width=device-width,user-scalable=no,initial-scale=1.0" name="viewport">
-        <base href="/" />
-        <title ng-bind='article.title'></title>
+        <base href="." />
+        <title ng-bind="article.title||'文章'"></title>
         <link href="//libs.useso.com/js/bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet">
         <link href="//libs.useso.com/js/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet" />
         <link href="/views/default/article.css?_=1" rel="stylesheet">
@@ -14,7 +14,7 @@
     </head>
     
     <body ng-cloak class='ng-cloak'>
-        <header ng-bind-html='mpa.header_page.html'></header>
+        <header dynamic-html='mpa.header_page.html'></header>
         <div id='mask' ng-if="loading">
             <div>
                 <i class='fa fa-spinner fa-5x fa-pulse'></i>
@@ -33,7 +33,7 @@
                 <div class="headpic" ng-if="article.hide_pic!=='Y'">
                     <img ng-src="{{article.pic}}">
                 </div>
-                <div id="content" class="content" ng-bind-html='article.body'></div>
+                <div id="content" class="content" dynamic-html='article.body'></div>
                 <div id="attachment" ng-if="article.attachments">
                     <table class='table table-bordered'>
                         <caption>附件</caption>
@@ -59,11 +59,14 @@
                         <span id='score' ng-bind='article.score'></span>
                     </span>
                 </div>
+                <div id='tag' ng-if="article.channels.length||article.tags.length">
+                    <span ng-repeat="c in article.channels" ng-click="openChannel(c)">{{c.title}}</span>
+                    <span ng-repeat="t in article.tags" ng-click="searchByTag(t)">{{t.title}}</span>
+                </div>
                 <div id='remark' class='clearfix' ng-show="mpa.can_article_remark==='Y'">
-                    <h4>评论
+                    <h5>评论
                         <span ng-if='article.remark_num' ng-bind="'（' + article.remark_num + '）'"></span>
-                    </h4>
-                    <a id='gotoRemarksHeader' href='#remark'></a>
+                    </h5>
                     <ul class='list-group' ng-hide="mode==='preview'">
                         <li class='list-group-item' ng-repeat="r in article.remarks" ng-click='reply(r)'>
                             <div class='content' ng-bind="r.remark"></div>
@@ -73,13 +76,12 @@
                             </div>
                         </li>
                     </ul>
-                    <a id='gotoNewRemark' href='#newRemark'></a>
                     <textarea id='newRemark' rows='4' class='form-control' ng-disabled="mode==='preview'" ng-model="newRemark"></textarea>
                     <button class='btn btn-primary pull-right' ng-disabled="mode==='preview'" ng-click='remark()'>发表评论</button>
                 </div>
             </div>
         </div>
-        <footer ng-bind-html='mpa.footer_page.html'></footer>
+        <footer dynamic-html='mpa.footer_page.html'></footer>
         <script type="text/javascript">
             if (/MicroMessenger/i.test(navigator.userAgent)) {
                 var mpid = location.search.match(/mpid=([^&]*)/)[1];
@@ -87,10 +89,10 @@
                 document.write("<script src='\/rest\/mi\/matter\/wxjssdksignpackage?mpid="+mpid+"&url="+encodeURIComponent(location.href.split('#')[0])+"'><\/script>");
             }
         </script>
-        <script src="/static/js/angular.min.js "></script>
-        <script src="/static/js/angular-sanitize.min.js "></script>
+        <script src="/static/js/angular.min.js"></script>
+        <script src="/static/js/angular-sanitize.min.js"></script>
         <script src="/static/js/xxt.share.js?_=1"></script>
-        <script src="/views/default/article.js?_=5"></script>
+        <script src="/views/default/article.js?_=6"></script>
         <script type="text/javascript">
             if (document.location.host === 'xinxintong.sinaapp.com') {
                 var _bdhmProtocol = (("https:" == document.location.protocol) ? " https://" : " http://");

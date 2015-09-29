@@ -1,3 +1,10 @@
+if (/MicroMessenger/.test(navigator.userAgent)) {
+    if (window.signPackage) {
+        //signPackage.debug = true;
+        signPackage.jsApiList = ['hideOptionMenu', 'onMenuShareTimeline', 'onMenuShareAppMessage'];
+        wx.config(signPackage);
+    }
+}
 lotApp = angular.module('app', ["ngSanitize"]).
 config(['$controllerProvider', function($cp) {
     lotApp.register = {
@@ -41,23 +48,28 @@ controller('lotCtrl', ['$scope', '$http', '$timeout', function($scope, $http, $t
             this.type = 'nochance';
             this.msg = msg;
         },
+        pretask: function(msg) {
+            this.type = 'pretask';
+            this.msg = msg;
+        },
     };
     $scope.awards = {};
     $scope.greeting = null;
     $http.get('/rest/app/lottery/get?mpid=' + mpid + '&lid=' + lid).success(function(rsp) {
-        var i, l, award, params, awards, lot, page;
+        var lot, i, l, award, params, awards, sharelink;
         params = rsp.data;
-        awards = params.lottery.awards;
+        lot = params.lottery;
+        $scope.lot = lot;
+        awards = lot.awards;
         for (i = 0, l = awards.length; i < l; i++) {
             award = awards[i];
             $scope.awards[award.aid] = award;
         }
-        if (params.lottery.show_winners === 'Y') {
+        if (lot.show_winners === 'Y') {
             $http.get('/rest/app/lottery/winnersList?lid=' + lid).success(function(rsp) {
                 $scope.winners = rsp.data;
             });
         }
-        $scope.lot = params.lottery;
         $scope.logs = params.logs || [];
         $scope.leftChance = params.leftChance;
         if (params.page && params.page.js && params.page.js.length) {
@@ -66,6 +78,31 @@ controller('lotCtrl', ['$scope', '$http', '$timeout', function($scope, $http, $t
             })();
         }
         $scope.params = params;
+        /**
+         * set share info
+         */
+        sharelink = 'http://' + location.hostname + "/rest/app/lottery";
+        sharelink += "?mpid=" + mpid;
+        sharelink += "&lid=" + lid;
+        window.shareid = params.user.vid + (new Date()).getTime();
+        sharelink += "&shareby=" + window.shareid;
+        window.xxt.share.set(lot.title, sharelink, lot.summary, lot.pic);
+        window.xxt.share.options.logger = function(shareto) {
+            var url;
+            url = "/rest/mi/matter/logShare";
+            url += "?shareid=" + window.shareid;
+            url += "&mpid=" + mpid;
+            url += "&id=" + lot.id;
+            url += "&type=lottery";
+            url += "&title=" + lot.title;
+            url += "&shareby=" + window.shareid;
+            url += "&shareto=" + shareto;
+            $http.get(url);
+        };
+        if (lot.pretask === 'Y' && lot._pretaskstate !== 'done') {
+            $scope.alert.pretask(lot.pretaskdesc);
+            return;
+        }
         $timeout(function() {
             $scope.$broadcast('xxt.app.lottery.ready', params);
         }, 0);
@@ -74,7 +111,7 @@ controller('lotCtrl', ['$scope', '$http', '$timeout', function($scope, $http, $t
         var log;
         log = result.log;
         $scope.leftChance = result.leftChance;
-        $scope.logs.push(log);
+        $scope.logs.splice(0, 0, log);
         if ($scope.lot.show_greeting === 'Y') {
             if (log.award_greeting && log.award_greeting.length)
                 $scope.showGreeting(log);
@@ -134,7 +171,11 @@ controller('lotCtrl', ['$scope', '$http', '$timeout', function($scope, $http, $t
         });
     };
     $scope.clickAlert = function(event) {
-        $scope.alert.empty();
+        event.preventDefault();
+        event.stopPropagation();
+        if ($scope.alert.type !== 'pretask') {
+            $scope.alert.empty();
+        }
     };
     $scope.validAward = function(award) {
         return award.type != 0 && award.type != 3;
@@ -146,22 +187,23 @@ controller('lotCtrl', ['$scope', '$http', '$timeout', function($scope, $http, $t
         return (!!award.get_prize_url && award.get_prize_url.length);
     };
     $scope.prize = function(log) {
-        var award;
+        var award, referrer;
         if (log.prize_url && log.prize_url.length) {
-            location.href = log.prize_url;
+            location.replace(log.prize_url);
         } else {
             award = $scope.awards[log.aid];
             if (!award.get_prize_url) return false;
-            $http.get(award.get_prize_url).success(function(rsp) {
+            referrer = '/rest/app/lottery/log/get?id=' + log.id;
+            $http.post(award.get_prize_url, {
+                referrer: referrer
+            }).success(function(rsp) {
                 var prizeUrl;
                 prizeUrl = {
-                    mpid: mpid,
-                    lid: lid,
-                    draw_at: log.draw_at,
+                    logid: log.id,
                     url: rsp.data.url
                 }
-                $http.post('/rest/app/lottery/prize', prizeUrl).success(function() {
-                    location.href = rsp.data.url;
+                $http.post('/rest/app/lottery/prize?mpid=' + mpid, prizeUrl).success(function() {
+                    location.replace(rsp.data.url);
                 })
             });
         }
@@ -175,7 +217,7 @@ controller('lotCtrl', ['$scope', '$http', '$timeout', function($scope, $http, $t
     $scope.debugReset = function() {
         var c, expdate = new Date();
         expdate.setTime(expdate.getTime() - (86400 * 1000 * 1));
-        c = 'xxt_' + lid + '_precondition' + "=; expires=" + expdate.toGMTString() + "; path=/";
+        c = 'xxt_' + lid + '_pretask' + "=; expires=" + expdate.toGMTString() + "; path=/";
         document.cookie = c;
         alert('clean');
     };

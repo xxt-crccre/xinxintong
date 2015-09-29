@@ -85,7 +85,7 @@ class main extends \mp\app\app_base {
 			/**
 			 * 获得的轮次
 			 */
-			if ($rounds = $this->model('app\enroll')->getRounds($this->mpid, $aid)) {
+			if ($rounds = $this->model('app\enroll\round')->byEnroll($this->mpid, $aid)) {
 				!empty($rounds) && $a->rounds = $rounds;
 			}
 
@@ -135,6 +135,7 @@ class main extends \mp\app\app_base {
 			return new \ResponseError('长时间未操作，请重新登陆！');
 		}
 
+		$current = time();
 		$uid = \TMS_CLIENT::get_client_uid();
 		$mpa = $this->model('mp\mpaccount')->getFeatures($this->mpid, 'heading_pic');
 		/**
@@ -149,23 +150,27 @@ class main extends \mp\app\app_base {
 		$newone['creater_src'] = 'A';
 		$newone['creater_name'] = $account->nickname;
 		$newone['create_at'] = time();
+		/* form page */
+		$page = array(
+			'title' => '登记信息页',
+			'type' => 'I',
+			'name' => 'z' . $current,
+		);
+		$page = $this->model('app\enroll\page')->add($this->mpid, $aid, $page);
 		$newone['entry_rule'] = json_encode(array(
-			'otherwise' => array('entry' => 'form'),
-			'member' => array('entry' => 'form', 'enroll' => 'Y', 'remark' => 'Y'),
-			'member_outacl' => array('entry' => 'form', 'enroll' => 'Y', 'remark' => 'Y'),
-			'fan' => array('entry' => 'form', 'enroll' => 'Y', 'remark' => 'Y'),
+			'otherwise' => array('entry' => $page->name),
+			'member' => array('entry' => $page->name, 'enroll' => 'Y', 'remark' => 'Y'),
+			'member_outacl' => array('entry' => $page->name, 'enroll' => 'Y', 'remark' => 'Y'),
+			'fan' => array('entry' => $page->name, 'enroll' => 'Y', 'remark' => 'Y'),
 			'nonfan' => array('entry' => '$mp_follow', 'enroll' => '$mp_follow'),
 		));
-		/**
-		 * 创建定制页
-		 */
-		$page = $this->model('code/page')->create($uid);
-		$newone['form_code_id'] = $page->id;
+		/* result page */
 		$page = array(
 			'title' => '查看结果页',
 			'type' => 'V',
+			'name' => 'z' . ($current + 1),
 		);
-		$this->model('app\enroll')->addPage($this->mpid, $aid, $page);
+		$this->model('app\enroll\page')->add($this->mpid, $aid, $page);
 
 		$this->model()->insert('xxt_enroll', $newone, false);
 
@@ -314,7 +319,7 @@ class main extends \mp\app\app_base {
 	 * $aid 获动的id
 	 */
 	public function addPage_action($aid) {
-		$newPage = $this->model('app\enroll')->addPage($this->mpid, $aid);
+		$newPage = $this->model('app\enroll\page')->add($this->mpid, $aid);
 
 		return new \ResponseData($newPage);
 	}
@@ -359,7 +364,7 @@ class main extends \mp\app\app_base {
 	 * $pid
 	 */
 	public function delPage_action($aid, $pid) {
-		$page = $this->model('app\enroll')->getPage($aid, $pid);
+		$page = $this->model('app\enroll\page')->byId($aid, $pid);
 
 		$this->model('code/page')->remove($page->code_id);
 
@@ -373,7 +378,8 @@ class main extends \mp\app\app_base {
 	 * $aid
 	 */
 	public function addRound_action($aid) {
-		if ($lastRound = $this->model('app\enroll')->getLastRound($this->mpid, $aid)) {
+		$modelRun = $this->model('app\enroll');
+		if ($lastRound = $modelRun->getLast($this->mpid, $aid)) {
 			/**
 			 * 检查或更新上一轮状态
 			 */
@@ -427,7 +433,8 @@ class main extends \mp\app\app_base {
 			/**
 			 * 启用一个轮次，要停用上一个轮次
 			 */
-			if ($lastRound = $this->model('app\enroll')->getLastRound($this->mpid, $aid)) {
+			$modelRun = $this->model('app\enroll');
+			if ($lastRound = $modelRun->getLast($this->mpid, $aid)) {
 				if ((int) $lastRound->state !== 2) {
 					$this->model()->update(
 						'xxt_enroll_round',
@@ -435,7 +442,6 @@ class main extends \mp\app\app_base {
 						"mpid='$this->mpid' and aid='$aid' and rid='$lastRound->rid'"
 					);
 				}
-
 			}
 		}
 

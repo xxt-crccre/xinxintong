@@ -1,57 +1,17 @@
 <div>
     <ul class="nav nav-tabs">
-        <li class='active'>
-            <a href="#tab_form" ng-click="shiftPage($event)" data-toggle='tab'>{{editing.pages.form.title}}</a>
-        </li>
-        <li ng-repeat="ep in extraPages">
+        <li ng-repeat="ep in editing.pages">
             <a href="#tab_{{ep.name}}" ng-click="shiftPage($event)" data-toggle='tab'>{{ep.title}}</a>
         </li>
         <li class='pull-right'>
             <button class='btn btn-success' ng-click='addPage()'>
-                <span class='glyphicon glyphicon-plus'>添加页面</span>
+            <span class='glyphicon glyphicon-plus'>添加页面</span>
             </button>
         </li>
     </ul>
     <div class="tab-content">
-        <div id='tab_form' class='tab-pane active'>
-            <div class='form-group editor'>
-                <div>
-                    <button class='btn' ng-class="editing.pages.form.$$modified?'btn-success':'btn-default'" ng-disabled='!editing.pages.form.$$modified'
-                    ng-click="updPage(editing.pages.form,'html')">保存</button>
-                    <button class='btn btn-default' ng-click="embedInput(editing.pages.form)">添加登记项</button>
-                    <button class='btn btn-default' ng-click="embedButton(editing.pages.form)">添加操作</button>
-                    <button class='btn btn-default' ng-click="embedMatter(editing.pages.form)">添加素材</button>
-                    <a href='#' class='pull-right' ng-click="gotoCode(editing.pages.form.code_id)">编辑页面代码</a>
-                </div>
-                <tinymce content='editing.pages.form.html' id='form' height='500' change="onPageChange(editing.pages.form)"></tinymce>
-                <div class='sidebar'>
-                    <button class='btn btn-default' title='修改' ng-click="editWrap(editing.pages.form)" ng-disabled='!hasActiveWrap||!activeWrap.editable'>
-                        <i class='fa fa-edit fa-fw'></i>
-                    </button>
-                    <button class='btn btn-default' title='删除' ng-click="removeWrap(editing.pages.form)" ng-disabled='!hasActiveWrap'>
-                        <i class='fa fa-remove fa-fw'></i>
-                    </button>
-                    </button>
-                    <button class='btn btn-default' title='上移' ng-click="upWrap(editing.pages.form)" ng-disabled='!hasActiveWrap'>
-                        <span class='fa fa-arrow-up fa-fw'></span>
-                    </button>
-                    <button class='btn btn-default' title='下移' ng-click="downWrap(editing.pages.form)" ng-disabled='!hasActiveWrap'>
-                        <span class='fa fa-arrow-down fa-fw'></span>
-                    </button>
-                    <button class='btn btn-default' title='上一级' ng-click="upLevel(editing.pages.form)" ng-disabled='!hasActiveWrap||activeWrap.upmost'>
-                        <span class='fa fa-level-up fa-fw'></span>
-                    </button>
-                    <button class='btn btn-default' title='下一级' ng-click="downLevel(editing.pages.form)" ng-disabled='!hasActiveWrap||activeWrap.downmost'>
-                        <span class='fa fa-level-down fa-fw'></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <div id='tab_{{ep.name}}' class='tab-pane' ng-repeat="ep in extraPages">
+        <div id='tab_{{ep.name}}' class='tab-pane' ng-repeat="ep in editing.pages">
             <div class='form-inline' style='margin:15px 0'>
-                <div class='form-group'>
-                    <p class='help-block'>ID:{{ep.name}}</p>
-                </div>
                 <div class='form-group'>
                     <select class='form-control' ng-model='ep.type' ng-change="updPage(ep,'type')">
                         <option value='I'>登记页</option>
@@ -61,11 +21,17 @@
                 <div class='form-group'>
                     <input type='text' class='form-control' ng-model='ep.title' tms-auto-update tms-wait=1000 tms-update="updPage(ep,'title')">
                 </div>
-                <button class='btn btn-default' ng-click='delPage(ep)'>删除</span>
-                </button>
-                <label class='checkbox-inline'>
-                    <input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='ep.share_page' ng-change="updPage(ep,'share_page')">分享当前页</label>
+                <button class='btn btn-default' ng-click='delPage($index,ep)'>删除</button>
                 <div class='form-group'>
+                    <label class="checkbox-inline"><input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='ep.check_entry_rule' ng-change="updPage(ep,'check_entry_rule')">检查进入规则</label>
+                </div>
+                <div class='form-group' ng-show="editing.can_autoenroll==='Y'">
+                    <label class="checkbox-inline"><input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='ep.autoenroll_onenter' ng-change="updPage(ep,'autoenroll_onenter')">进入时自动登记</label>
+                    <label class="checkbox-inline"><input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='ep.autoenroll_onshare' ng-change="updPage(ep,'autoenroll_onshare')">分享时自动登记</label>
+                </div>
+                <div class='form-group'>
+                    <label class='checkbox-inline'>
+                        <input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='ep.share_page' ng-change="updPage(ep,'share_page')">分享当前页</label>
                     <select class='form-control' title='摘要信息' ng-model='ep.share_summary' ng-options='v.id as v.title for (k,v) in schema' ng-change="updPage(ep,'share_summary')">
                         <option value=''>活动摘要</option>
                     </select>
@@ -75,6 +41,7 @@
                 <div>
                     <button class='btn' ng-class="ep.$$modified?'btn-success':'btn-default'" ng-disabled='!ep.$$modified' ng-click="updPage(ep,'html')">保存</button>
                     <button class='btn btn-default' ng-if="ep.type==='I'" ng-click="embedInput(ep)">添加登记项</button>
+                    <button class='btn btn-default' ng-click="embedUser(ep)">添加用户项</button>
                     <button class='btn btn-default' ng-if="ep.type==='V'" ng-click="embedShow(ep)">添加登记信息</button>
                     <button class='btn btn-default' ng-click="embedButton(ep)">添加操作</button>
                     <button class='btn btn-default' ng-click="embedMatter(ep)">添加素材</button>
@@ -83,24 +50,28 @@
                 <tinymce content='ep.html' id='{{ep.name}}' height='500' change="onPageChange(ep)"></tinymce>
                 <div class='sidebar'>
                     <button class='btn btn-default' ng-click="editWrap(ep)" ng-disabled='!hasActiveWrap||!activeWrap.editable'>
-                        <i class='fa fa-edit fa-fw'></i>
+                    <i class='fa fa-edit fa-fw'></i>
                     </button>
                     <button class='btn btn-default' title='修改' ng-click="removeWrap(ep)" ng-disabled='!hasActiveWrap'>
-                        <i class='fa fa-remove fa-fw'></i>
-                    </button>
+                    <i class='fa fa-remove fa-fw'></i>
                     </button>
                     <button class='btn btn-default' ng-click="upWrap(ep)" ng-disabled='!hasActiveWrap'>
-                        <span class='fa fa-arrow-up fa-fw'></span>
+                    <span class='fa fa-arrow-up fa-fw'></span>
                     </button>
                     <button class='btn btn-default' ng-click="downWrap(ep)" ng-disabled='!hasActiveWrap'>
-                        <span class='fa fa-arrow-down fa-fw'></span>
+                    <span class='fa fa-arrow-down fa-fw'></span>
                     </button>
                     <button class='btn btn-default' title='上一级' ng-click="upLevel(ep)" ng-disabled='!hasActiveWrap||activeWrap.upmost'>
-                        <span class='fa fa-level-up fa-fw'></span>
+                    <span class='fa fa-level-up fa-fw'></span>
                     </button>
                     <button class='btn btn-default' title='下一级' ng-click="downLevel(ep)" ng-disabled='!hasActiveWrap||activeWrap.downmost'>
-                        <span class='fa fa-level-down fa-fw'></span>
+                    <span class='fa fa-level-down fa-fw'></span>
                     </button>
+                </div>
+            </div>
+            <div class='form-inline'>
+                <div class='form-group'>
+                    <p class='help-block'>ID:{{ep.name}}</p>
                 </div>
             </div>
         </div>
@@ -142,7 +113,7 @@
                 <div class="form-group">
                     <label class="col-md-2 control-label">ID</label>
                     <div class="col-md-10">
-                        <input type='text' class='form-control' ng-model='def.key' readonly>
+                        <p class='form-control-static' ng-bind='def.key'></p>
                     </div>
                 </div>
                 <div class="form-group">
@@ -218,6 +189,12 @@
         <div class="modal-body">
             <form class="form-horizontal" role="form">
                 <div class="form-group">
+                    <label class="col-md-2 control-label">ID</label>
+                    <div class="col-md-10">
+                        <p class='form-control-static' ng-bind='def.key'></p>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label class="col-md-2 control-label">名称*</label>
                     <div class="col-md-10">
                         <input type='text' class='form-control' ng-model='def.name' required>
@@ -233,6 +210,29 @@
                         <div class="checkbox">
                             <label><input type='checkbox' ng-true-value="'1'" ng-false-value="'0'" ng-model='def.required'>是</label>
                         </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer" style="margin-top:0">
+            <button class="btn btn-success" ng-click="ok()">确定</button>
+        </div>
+    </script>
+    <script type="text/ng-template" id="embedUserLib.html">
+        <div class="modal-header">
+            <button class="close" ng-click="cancel()" type="button">×</button>
+            <h5 class="modal-title">访问用户</h5>
+        </div>
+        <div class="modal-body">
+            <form class="form-horizontal" role="form">
+                <div class="form-group">
+                    <label class="col-md-2 control-label">登记项</label>
+                    <div class="col-md-10">
+                        <ul class='list-group' style='overflow-y:auto;max-height:245px;margin-bottom:0'>
+                            <li class='list-group-item slim'><label class='checkbox-inline'><input type='checkbox' ng-model='def.nickname'>用户昵称</label></li>
+                            <li class='list-group-item slim'><label class='checkbox-inline'><input type='checkbox' ng-model='def.headpic'>用户头像</label></li>
+                            <li class='list-group-item slim'><label class='checkbox-inline'><input type='checkbox' ng-model='def.rankByFollower'>邀请用户数排名</label></li>
+                        </ul>
                     </div>
                 </div>
             </form>
@@ -259,6 +259,13 @@
                     <div class="col-md-10">
                         <label class='radio-inline'><input type='radio' value='U' name='scope' ng-model='def.dataScope'>当前用户</label>
                         <label class='radio-inline'><input type='radio' value='A' name='scope' ng-model='def.dataScope'>整个活动</label>
+                        <label class='radio-inline'><input type='radio' value='I' name='scope' ng-model='def.dataScope'>当前用户邀请的</label>
+                    </div>
+                </div>
+                <div class="form-group" ng-show="def.type==='list'">
+                    <label class="col-md-2 control-label">加载数据</label>
+                    <div class="col-md-10">
+                        <label class='checkbox-inline'><input type='checkbox' ng-true-value="'Y'" ng-false-value="'N'" ng-model='def.autoload'>自动</label>
                     </div>
                 </div>
                 <div class="form-group" ng-show="def.type==='list'">
@@ -280,9 +287,10 @@
                     <label class="col-md-2 control-label">登记项</label>
                     <div class="col-md-10">
                         <ul class='list-group' style='overflow-y:auto;max-height:245px;margin-bottom:0'>
-                            <li class='list-group-item' style='padding-top:0;padding-bottom:7px'><label class='checkbox-inline'><input type='checkbox' ng-model='def.addEnrollAt'>登记时间</label></li>
-                            <li class='list-group-item' style='padding-top:0;padding-bottom:7px'><label class='checkbox-inline'><input type='checkbox' ng-model='def.addNickname'>昵称</label></li>
-                            <li class='list-group-item' style='padding-top:0;padding-bottom:7px' ng-repeat='s in def.schema'><label class='checkbox-inline'><input type='checkbox' ng-model='s.checked'>{{s.title}}</label></li>
+                            <li class='list-group-item slim'><label class='checkbox-inline'><input type='checkbox' ng-model='def.addEnrollAt'>登记时间</label></li>
+                            <li class='list-group-item slim'><label class='checkbox-inline'><input type='checkbox' ng-model='def.addNickname'>昵称</label></li>
+                            <li class='list-group-item slim'><label class='checkbox-inline'><input type='checkbox' ng-model='def.addHeadpic'>头像</label></li>
+                            <li class='list-group-item slim' ng-repeat='s in def.schema'><label class='checkbox-inline'><input type='checkbox' ng-model='s.checked'>{{s.title}}<span style="color:#ccc;padding-left:2em">{{'ID:'+s.id}}</span></label></li>
                         </ul>
                     </div>
                 </div>
@@ -338,7 +346,7 @@
                         <input type='text' class='form-control' ng-model='def.label'>
                     </div>
                 </div>
-                <div class="form-group" ng-show="['submit','gotoPage'].indexOf(def.type)!==-1">
+                <div class="form-group" ng-show="['submit','gotoPage','acceptInvite'].indexOf(def.type)!==-1">
                     <label class="col-md-3 control-label">操作后</label>
                     <div class="col-md-9">
                         <select class='form-control' ng-model='def.next' ng-options='k as v.l for (k,v) in pages'>

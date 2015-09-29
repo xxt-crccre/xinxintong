@@ -1,11 +1,11 @@
 <?php
 namespace app\merchant;
 
-require_once dirname(dirname(dirname(__FILE__))) . '/xxt_base.php';
+require_once dirname(dirname(dirname(__FILE__))) . '/member_base.php';
 /**
  * 产品
  */
-class product extends \xxt_base {
+class product extends \member_base {
 	/**
 	 *
 	 */
@@ -16,18 +16,56 @@ class product extends \xxt_base {
 		return $rule_action;
 	}
 	/**
+	 * 进入产品展示页
+	 *
+	 * $mpid mpid'id
+	 * $shop shop'id
+	 */
+	public function index_action($mpid, $shop, $mocker = null, $code = null) {
+		/**
+		 * 获得当前访问用户
+		 */
+		$openid = $this->doAuth($mpid, $code, $mocker);
+
+		$this->afterOAuth($mpid, $shop, $openid);
+	}
+	/**
+	 * 返回页面
+	 */
+	public function afterOAuth($mpid, $shopId, $openid) {
+		$this->view_action('/app/merchant/products');
+	}
+	/**
 	 * 获得属性的可选值
 	 *
 	 * $propId 属性ID
 	 * $assoPropId 关联的属性ID
 	 * $assoPropVid 关联的属性ID
 	 */
-	public function getByPropValue_action($cateId, $vids) {
-		$vids = explode(',', $vids);
+	public function getByPropValue_action($cateId, $vids = '', $cascaded = 'N') {
+		$vids = empty($vids) ? array() : explode(',', $vids);
 
-		$products = $this->model('app\merchant\product')->byPropValue($cateId, $vids);
+		$products = $this->model('app\merchant\product')->byPropValue($cateId, $vids, $cascaded);
 
 		return new \ResponseData($products);
+	}
+	/*
+	 *
+	 */
+	public function get_action($id) {
+		$modelProd = $this->model('app\merchant\product');
+		$prod = $modelProd->byId($id, 'Y');
+
+		/*$prodPropValues = array();
+		foreach ($prod->catelog->properties as $prop) {
+		$prodPropValues[] = array(
+		'name' => $prop->name,
+		'value' => $prod->propValue2->{$prop->id}->name,
+		);
+		}*/
+		//$prod->propValues = $prodPropValues;
+
+		return new \ResponseData($prod);
 	}
 	/**
 	 *

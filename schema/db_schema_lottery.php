@@ -17,9 +17,9 @@ $sql .= ",fans_only char(1) not null default 'N'"; //仅限关注用户抽奖
 $sql .= ",fans_enter_only char(1) not null default 'N'"; //仅限关注用户进入
 $sql .= ",access_control char(1) not null default 'N'"; //仅限认证用户
 $sql .= ',authapis text';
-$sql .= ",precondition char(1) not null default 'N'"; //前置活动连接
-$sql .= ",preactivity text"; //前置活动链接
-$sql .= ",preactivitycount char(1) not null default 'F'"; //前置活动链接
+$sql .= ",pretask char(1) not null default 'N'"; //前置活动连接
+$sql .= ",pretaskdesc text"; //前置活动链接
+$sql .= ",pretaskcount char(1) not null default 'F'"; //前置活动链接
 $sql .= ",chance int not null default 1"; // 可以抽奖的次数
 $sql .= ",period char(1) not null default 'A'"; // A:accumulate;D:day,W:week,M:month,Y:year
 $sql .= ',nonfans_alert text'; //非关注用户提示
@@ -28,9 +28,6 @@ $sql .= ',nostart_alert text'; //活动没有开始提示
 $sql .= ',hasend_alert text'; //活动没有结束提示
 $sql .= ",show_greeting char(1) not null default 'Y'"; //是否显示中奖词
 $sql .= ",show_winners char(1) not null default 'N'"; //显示获奖人名单
-$sql .= ',extra_css text';
-$sql .= ',extra_ele text';
-$sql .= ',extra_js text';
 $sql .= ',page_id int not null default 0';
 $sql .= ",autostop char(1) not null default 'Y'";
 $sql .= ",maxstep int not null default 60";
@@ -112,9 +109,9 @@ if (!$mysqli->query($sql)) {
 }
 //
 $sql = "create table if not exists xxt_lottery_log(";
-$sql .= 'mpid varchar(32) not null';
+$sql .= 'id int not null auto_increment';
+$sql .= ',mpid varchar(32) not null';
 $sql .= ',lid varchar(40) not null'; // 轮盘抽奖活动的ID
-$sql .= ',mid varchar(32) not null'; // 中奖会员
 $sql .= ",openid varchar(255) not null default ''";
 $sql .= ',draw_at int not null'; // 抽奖的时间
 $sql .= ',aid varchar(40) not null'; // 奖品的ID
@@ -122,7 +119,7 @@ $sql .= ",times_accumulated int not null default 1"; //有效时段内，累积�
 $sql .= ",last char(1) not null default 'Y'"; // 最后一次抽奖记录。每一次抽奖动作都记录，记录最后一条便于计算。
 $sql .= ",takeaway char(1) not null default 'N'"; // 奖品是否已经领取。只对非实物奖品有效。
 $sql .= ",prize_url text"; // 兑奖的地址
-$sql .= ",primary key(lid,mid,openid,draw_at)) ENGINE=MyISAM DEFAULT CHARSET=utf8";
+$sql .= ",primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8";
 if (!$mysqli->query($sql)) {
 	header('HTTP/1.0 500 Internal Server Error');
 	echo 'database error(result): ' . $sql . ':' . $mysqli->error;

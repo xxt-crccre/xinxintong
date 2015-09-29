@@ -5,16 +5,15 @@ if (/MicroMessenger/.test(navigator.userAgent)) {
         wx.config(signPackage);
     }
 }
-angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp) {
-    $lp.html5Mode(true);
-}]).controller('ctrl', ['$location', '$scope', '$http', '$sce', '$timeout', '$q', function($location, $scope, $http, $sce, $timeout, $q) {
-    var mpid, id, shareby;
-    mpid = $location.search().mpid;
-    id = $location.search().id;
-    shareby = $location.search().shareby ? $location.search().shareby : '';
+angular.module('xxt', ["ngSanitize"]).controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $http, $timeout, $q) {
+    var ls, mpid, id, shareby;
+    ls = location.search;
+    mpid = ls.match(/mpid=([^&]*)/)[1];
+    id = ls.match(/(\?|&)id=([^&]*)/)[2];
+    shareby = ls.match(/shareby=([^&]*)/) ? ls.match(/shareby=([^&]*)/)[1] : '';
     $scope.mpid = mpid;
     $scope.articleId = id;
-    $scope.mode = $location.search().mode || false;
+    $scope.mode = ls.match(/mode=([^&]*)/) ? ls.match(/mode=([^&]*)/)[1] : '';
     var setShare = function() {
         var shareid, sharelink;
         shareid = $scope.user.vid + (new Date()).getTime();
@@ -41,17 +40,14 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
         $http.get('/rest/mi/article/get?mpid=' + mpid + '&id=' + id).success(function(rsp) {
             var params;
             params = rsp.data;
-            params.article.body = $sce.trustAsHtml(params.article.body);
             $scope.article = params.article;
             $scope.user = params.user;
             if (params.mpaccount.header_page) {
-                params.mpaccount.header_page.html = $sce.trustAsHtml(params.mpaccount.header_page.html);
                 (function() {
                     eval(params.mpaccount.header_page.js);
                 })();
             }
             if (params.mpaccount.footer_page) {
-                params.mpaccount.footer_page.html = $sce.trustAsHtml(params.mpaccount.footer_page.html);
                 (function() {
                     eval(params.mpaccount.footer_page.js);
                 })();
@@ -66,28 +62,61 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
                 setShare();
             }
             if ($scope.article.can_picviewer === 'Y') {
-                var eViewer, hm, body;
+                var eViewer, js, body;
                 eViewer = document.createElement('div');
                 eViewer.setAttribute('id', 'picViewer');
                 eViewer.innerHTML = "<div><span class='page'></span><span class='prev'><i class='fa fa-angle-left'></i></span><span class='next'><i class='fa fa-angle-right'></i></span><span class='exit'><i class='fa fa-times-circle-o'></i></span></div><img>";
                 document.body.appendChild(eViewer);
                 body = document.querySelector('body');
-                hm = document.createElement("script");
-                hm.src = "/static/js/hammer.min.js";
-                body.appendChild(hm);
-                hm = document.createElement("script");
-                hm.src = "/static/js/picViewer.js";
-                hm.onload = function() {
-                    var eImgs, aImgs, currentIndex, oPicViewer;
+                js = document.createElement("script");
+                js.src = "/static/js/hammer.min.js";
+                body.appendChild(js);
+                js = document.createElement("script");
+                js.src = "/static/js/picViewer.js?_=1";
+                js.onload = function() {
+                    var eImgs, aImgs, currentIndex;
                     aImgs = [];
                     eImgs = document.querySelectorAll('.wrap img');
-                    oPicViewer = PicViewer('#picViewer img', {});
+
                     (function() {
-                        var eCloser, ePage, ePrev, eNext, fnClickImg, fnSetActionStatus;
+                        var oPicViewer, eCloser, ePage, ePrev, eNext, fnClickImg, fnSetActionStatus;
                         ePage = document.querySelector('#picViewer span.page');
                         ePrev = document.querySelector('#picViewer span.prev');
                         eNext = document.querySelector('#picViewer span.next');
                         eCloser = document.querySelector('#picViewer span.exit');
+
+                        function next() {
+                            if (currentIndex < aImgs.length - 1) {
+                                currentIndex++;
+                                eViewer.querySelector('img').src = aImgs[currentIndex].src;
+                                fnSetActionStatus();
+                            }
+                        };
+
+                        function prev() {
+                            if (currentIndex > 0) {
+                                currentIndex--;
+                                eViewer.querySelector('img').src = aImgs[currentIndex].src;
+                                fnSetActionStatus();
+                            }
+                        };
+
+                        function fnClose() {
+                            eViewer.style.display = 'none';
+                            document.body.style.overflow = 'auto';
+                            document.body.removeEventListener('touchmove', fnStopMove, false);
+                            return false;
+                        };
+
+                        function fnStopMove(e) {
+                            e.preventDefault();
+                        };
+                        oPicViewer = PicViewer('#picViewer img', {
+                            next: next,
+                            prev: prev,
+                            close: fnClose
+                        });
+
                         fnClickImg = function(event) {
                             var top, height, src;
                             event.preventDefault();
@@ -102,6 +131,7 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
                             eViewer.querySelector('img').src = src;
                             oPicViewer.fresh();
                             fnSetActionStatus();
+                            document.body.addEventListener('touchmove', fnStopMove, false);
                         };
                         fnSetActionStatus = function() {
                             if (currentIndex === 0) {
@@ -118,30 +148,15 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
                         };
                         ePrev.addEventListener('click', function(e) {
                             e.preventDefault();
-                            if (currentIndex > 0) {
-                                currentIndex--;
-                                eViewer.querySelector('img').src = aImgs[currentIndex].src;
-                                fnSetActionStatus();
-                            }
+                            prev();
                             return false;
                         }, false);
                         eNext.addEventListener('click', function(e) {
                             e.preventDefault();
-                            if (currentIndex < aImgs.length - 1) {
-                                currentIndex++;
-                                eViewer.querySelector('img').src = aImgs[currentIndex].src;
-                                fnSetActionStatus();
-                            }
+                            next();
                             return false;
                         }, false);
-                        eCloser.addEventListener('click', function(e) {
-                            eViewer.style.display = 'none';
-                            document.body.style.overflow = 'auto';
-                            return false;
-                        }, false);
-                        eViewer.addEventListener('touchmove', function(e) {
-                            e.preventDefault();
-                        }, false);
+                        eCloser.addEventListener('click', fnClose, false);
                         var img, i, l, indicator;
                         for (i = 0, l = eImgs.length; i < l; i++) {
                             img = eImgs[i];
@@ -154,17 +169,17 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
                             aImgs.push(img);
                         }
                         window.addEventListener('resize', function() {
+                            var top = Math.max(document.documentElement.scrollTop, document.body.scrollTop);
+                            var height = document.documentElement.clientHeight;
+                            eViewer.style.top = top + 'px';
+                            eViewer.style.height = height + 1 + 'px';
                             if (eViewer.style.display === 'block') {
-                                var top = Math.max(document.documentElement.scrollTop, document.body.scrollTop);
-                                var height = document.documentElement.clientHeight;
-                                eViewer.style.top = top + 'px';
-                                eViewer.style.height = height + 1 + 'px';
                                 oPicViewer.fresh();
                             }
                         });
                     })();
                 };
-                body.appendChild(hm);
+                body.appendChild(js);
             }
         }).error(function(content, httpCode) {
             if (httpCode === 401) {
@@ -230,9 +245,6 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
             };
             $scope.newRemark = '';
             $scope.article.remarks === false ? $scope.article.remarks = [rsp.data] : $scope.article.remarks.splice(0, 0, rsp.data);
-            $timeout(function() {
-                document.querySelector('#gotoRemarksHeader').click();
-            });
         });
     };
     $scope.reply = function(remark) {
@@ -244,10 +256,31 @@ angular.module('xxt', ["ngSanitize"]).config(['$locationProvider', function($lp)
     $scope.followMp = function() {
         location.href = 'yixin://opencard?pid=' + $scope.mpa.yx_cardid;
     };
-    window.openMatter = function(id, type) {
+    $scope.openChannel = function(ch) {
+        location.href = '/rest/mi/matter?mpid=' + mpid + '&type=channel&id=' + ch.id;
+    };
+    $scope.searchByTag = function(tag) {
+        location.href = '/rest/mi/article?mpid=' + mpid + '&tagid=' + tag.id;
+    };
+    $scope.openMatter = function(event, id, type) {
+        event.preventDefault();
+        event.stopPropagation();
         location.href = '/rest/mi/matter?mpid=' + mpid + '&id=' + id + '&type=' + type + '&tpl=std';
     };
-}]).filter('filesize', function() {
+}]).directive('dynamicHtml', function($compile) {
+    return {
+        restrict: 'EA',
+        replace: true,
+        link: function(scope, ele, attrs) {
+            scope.$watch(attrs.dynamicHtml, function(html) {
+                if (html && html.length) {
+                    ele.html(html);
+                    $compile(ele.contents())(scope);
+                }
+            });
+        }
+    };
+}).filter('filesize', function() {
     return function(length) {
         var unit;
         if (length / 1024 < 1) {

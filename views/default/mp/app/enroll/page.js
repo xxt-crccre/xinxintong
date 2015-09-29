@@ -17,10 +17,14 @@
         activeEditor.save();
     };
     WrapLib.prototype.extractInputSchema = function(wrap) {
-        var $label, def = {};
+        var $label, def = {},
+            $input, model;
         $label = $($(wrap).find('label').get(0));
         def.name = $label.html();
         def.showname = $label.hasClass('sr-only') ? 'placeholder' : 'label';
+        $input = $(wrap).find('input,select');
+        model = $input.attr('ng-model');
+        def.key = model.split('.')[1];
         return def;
     };
     WrapLib.prototype.extractSchema = function(html) {
@@ -334,17 +338,30 @@
                 class: c
             }, html);
         }
+        if (def.addHeadpic) {
+            html = "<label>头像</label><div><img ng-src='{{Record.current.enroller.fan.headimgurl}}'></div>";
+            this.addWrap(page, 'div', {
+                wrap: 'static',
+                class: c
+            }, html);
+        }
     };
     WrapLib.prototype.embedList = function(page, def) {
-        var dataApi, onclick, html;
-        dataApi = def.dataScope === 'A' ? "Record.nextPage()" : "Record.nextPage('user')";
+        var dataApi, dataApi2, autoload, onclick, html;
+        dataApi = "Record.nextPage(\\'" + def.dataScope + "\\')";
+        dataApi2 = "Record.nextPage('" + def.dataScope + "')";
+        def.autoload === 'Y' && (autoload = 'infinite-scroll="' + dataApi2 + '" infinite-scroll-disabled="Record.busy" infinite-scroll-distance="1"');
         onclick = def.onclick.length ? " ng-click=\"gotoPage($event,'" + def.onclick + "',r.enroll_key)\"" : '';
-        html = '<ul class="list-group" ng-init="requireRecordList=\'' + (def.dataScope === 'A' ? "" : "user") + '\'"infinite-scroll="' + dataApi + '" infinite-scroll-disabled="Record.busy" infinite-scroll-distance="1">';
+        html = '<ul class="list-group" tms-exec="onReady(\'' + dataApi + '\')"';
+        def.autoload === 'Y' && (html += autoload);
+        html += '>';
         html += '<li class="list-group-item" ng-repeat="r in Record.list"' + onclick + '>';
         if (def.addEnrollAt)
             html += "<div wrap='static' class='wrap-inline'><label>登记时间</label><div>{{r.enroll_at*1000|date:'yyyy-MM-dd HH:mm'}}</div></div>";
         if (def.addNickname)
             html += "<div wrap='static' class='wrap-inline'><label>昵称</label><div>{{r.nickname}}</div></div>";
+        if (def.addHeadpic)
+            html += "<div wrap='static' class='wrap-inline'><label>头像</label><div><img ng-src='{{r.headimgurl}}'></div></div>";
         if (def.schema) {
             var i, s;
             for (i in def.schema) {
@@ -412,6 +429,29 @@
                 break;
         }
     };
+    WrapLib.prototype.embedUser = function(page, def) {
+        if (def.nickname === true) {
+            html = "<label>昵称</label><div>{{User.fan.nickname}}</div>";
+            this.addWrap(page, 'div', {
+                wrap: 'static',
+                class: 'form-group'
+            }, html);
+        }
+        if (def.headpic === true) {
+            html = '<label>头像</label><div><img ng-src="{{User.fan.headimgurl}}"></div>';
+            this.addWrap(page, 'div', {
+                wrap: 'static',
+                class: 'form-group'
+            }, html);
+        }
+        if (def.rankByFollower === true) {
+            html = '<label>邀请用户排名</label><div tms-exec="onReady(\'Statistic.rankByFollower()\')">{{Statistic.result.rankByFollower.rank}}</div>';
+            this.addWrap(page, 'div', {
+                wrap: 'static',
+                class: 'form-group'
+            }, html);
+        }
+    };
     WrapLib.prototype.changeEmbedStatic = function(page, wrap, def) {
         def.inline ? $(wrap).addClass('wrap-inline') : $(wrap).removeClass('wrap-inline');
         def.splitLine ? $(wrap).addClass('wrap-splitline') : $(wrap).removeClass('wrap-splitline');
@@ -457,7 +497,14 @@
             id: 'btnLikeRecord',
             act: "likeRecord($event)"
         },
-        //remarkRecord: { id: 'btnRemarkRecord', act: '' },
+        acceptInvite: {
+            id: function(def) {
+                return 'btnAcceptInvite_' + def.next;
+            },
+            act: function(def) {
+                return 'acceptInvite' + EmbedButtonSchema._args(def);
+            }
+        },
         gotoPage: {
             id: function(def) {
                 return 'btnGotoPage_' + def.next;
@@ -518,7 +565,7 @@
         var extractSchema = function() {
             var i, pages, page, s, s2;
             pages = $scope.editing.pages;
-            s = wrapLib.extractSchema(pages.form.html);
+            s = {};
             for (i in pages) {
                 page = pages[i];
                 if (page.type && page.type === 'I') {
@@ -631,7 +678,16 @@
                             id: 'email',
                             label: '邮箱'
                         }));
-                        auth.extattr && auth.extattr.length && (authAttrs = authAttrs.concat(auth.extattr));
+                        if (auth.extattr && auth.extattr.length) {
+                            var i, l, ea;
+                            for (i = 0, l = auth.extattr.length; i < l; i++) {
+                                ea = auth.extattr[i];
+                                authAttrs.push({
+                                    id: 'extattr.' + ea.id,
+                                    label: ea.label
+                                });
+                            }
+                        }
                         $scope.selectedAuth.attrs = authAttrs;
                     };
                     $scope.shiftAuthAttr = function() {
@@ -665,6 +721,9 @@
                 },
                 editRecord: {
                     l: '修改登记'
+                },
+                acceptInvite: {
+                    l: '接受邀请'
                 },
                 gotoPage: {
                     l: '页面导航'
@@ -752,6 +811,7 @@
                         splitLine: true,
                         dataScope: 'U',
                         canLike: 'N',
+                        autoload: 'N',
                         onclick: '',
                         addEnrollAt: 0,
                         addNickname: 0
@@ -766,6 +826,31 @@
                 }]
             }).result.then(function(def) {
                 wrapLib.embedShow(page, def);
+            });
+        };
+        $scope.embedUser = function(page) {
+            $modal.open({
+                templateUrl: 'embedUserLib.html',
+                backdrop: 'static',
+                resolve: {
+                    enroll: function() {
+                        return $scope.editing;
+                    }
+                },
+                controller: ['$scope', '$modalInstance', 'enroll', function($scope, $mi, enroll) {
+                    $scope.pages = enroll.pages;
+                    $scope.def = {
+                        nickname: 0
+                    };
+                    $scope.ok = function() {
+                        $mi.close($scope.def);
+                    };
+                    $scope.cancel = function() {
+                        $mi.dismiss();
+                    };
+                }]
+            }).result.then(function(def) {
+                wrapLib.embedUser(page, def);
             });
         };
         $scope.embedMatter = function(page) {
@@ -937,15 +1022,20 @@
         $scope.addPage = function() {
             http2.get('/rest/mp/app/enroll/addPage?aid=' + $scope.aid, function(rsp) {
                 var page = rsp.data;
-                $scope.editing.pages[page.name] = page;
-                $scope.extraPages[page.name] = page;
+                $scope.editing.pages.push(page);
                 $timeout(function() {
                     $('a[href="#tab_' + page.name + '"]').tab('show');
                 });
             });
         };
         $scope.onPageChange = function(page) {
-            page.$$modified = page.html !== $scope.persisted.pages[page.name].html;
+            var i, old;
+            for (i = $scope.persisted.pages.length - 1; i >= 0; i--) {
+                old = $scope.persisted.pages[i];
+                if (old.name === page.name)
+                    break;
+            }
+            page.$$modified = page.html !== old.html;
         };
         $scope.updPage = function(page, name) {
             var editor;
@@ -973,16 +1063,15 @@
                 });
             }
         };
-        $scope.delPage = function(page) {
+        $scope.delPage = function(index, page) {
             var url = '/rest/mp/app/enroll/delPage';
             url += '?aid=' + $scope.aid;
             url += '&pid=' + page.id;
             http2.get(url, function(rsp) {
                 tinymce.remove('#' + page.name);
-                delete $scope.editing.pages[page.name];
-                delete $scope.extraPages[page.name];
+                $scope.editing.pages.splice(index, 1);
                 $timeout(function() {
-                    $('a[href="#tab_form"]').tab('show');
+                    $($('a[href^=#tab_]')[0]).tab('show');
                 });
             });
         };
@@ -1014,12 +1103,10 @@
         };
         $scope.$watch('editing', function(nv) {
             if (!nv) return;
-            var extraPages = {};
-            angular.forEach($scope.editing.pages, function(value, key) {
-                key !== 'form' && (extraPages[key] = value);
-            });
-            $scope.extraPages = extraPages;
             $scope.schema = extractSchema();
+            $timeout(function() {
+                $($('a[href^=#tab_]')[0]).tab('show');
+            });
         });
     }]);
 })();
