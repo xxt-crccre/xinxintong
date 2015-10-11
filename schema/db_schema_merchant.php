@@ -23,6 +23,24 @@ if (!$mysqli->query($sql)) {
 	echo 'database error: ' . $mysqli->error;
 }
 /**
+ * 商店的页面
+ */
+$sql = 'create table if not exists xxt_merchant_page(';
+$sql .= 'id int not null auto_increment';
+$sql .= ',mpid varchar(32) not null';
+$sql .= ',sid int not null'; //shopid
+$sql .= ",creater varchar(40) not null default ''";
+$sql .= ",create_at int not null";
+$sql .= ",type varchar(12) not null"; //shelf,order,orderlist,pay,payok,op.order,op.orderlist
+$sql .= ",title varchar(70) not null default ''";
+$sql .= ',code_id int not null default 0'; // from xxt_code_page
+$sql .= ",seq int not null";
+$sql .= ',primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8';
+if (!$mysqli->query($sql)) {
+	header('HTTP/1.0 500 Internal Server Error');
+	echo 'database error: ' . $mysqli->error;
+}
+/**
  * 客服人员
  */
 $sql = "create table if not exists xxt_merchant_staff(";
@@ -51,6 +69,9 @@ $sql .= ',reviser varchar(40) not null';
 $sql .= ",modify_at int not null";
 $sql .= ",parent_cate_id int not null default 0"; // 父分类ID
 $sql .= ",name varchar(70) not null";
+$sql .= ",submit_order_tmplmsg int not null default 0";
+$sql .= ",pay_order_tmplmsg int not null default 0";
+$sql .= ",feedback_order_tmplmsg int not null default 0";
 $sql .= ',primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8';
 if (!$mysqli->query($sql)) {
 	header('HTTP/1.0 500 Internal Server Error');
@@ -237,10 +258,30 @@ if (!$mysqli->query($sql)) {
 	echo 'database error: ' . $mysqli->error;
 }
 /*
+ * 产品订单反馈属性定义
+ */
+$sql = 'create table if not exists xxt_merchant_order_feedback_property(';
+$sql .= "id int not null auto_increment";
+$sql .= ",mpid varchar(32) not null";
+$sql .= ',sid int not null'; // shop id
+$sql .= ',cate_id int not null';
+$sql .= ",creater varchar(40) not null";
+$sql .= ",create_at int not null";
+$sql .= ",reviser varchar(40) not null";
+$sql .= ",modify_at int not null";
+$sql .= ",name varchar(255) not null";
+$sql .= ",seq int not null default 0";
+$sql .= ',primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8';
+if (!$mysqli->query($sql)) {
+	header('HTTP/1.0 500 Internal Server Error');
+	echo 'database error: ' . $mysqli->error;
+}
+/*
  * 产品订单
  */
 $sql = 'create table if not exists xxt_merchant_order(';
 $sql .= 'id int not null auto_increment';
+$sql .= ',trade_no varchar(32) not null'; // 订单号
 $sql .= ',mpid varchar(32) not null';
 $sql .= ',sid varchar(32) not null';
 $sql .= ',order_status int not null'; // 2-待发货, 3-已发货, 5-已完成, 8-维权中
@@ -266,6 +307,7 @@ $sql .= ',product_img text';
 $sql .= ",delivery_id int not null default 0";
 $sql .= ",delivery_company varchar(255) not null default ''";
 $sql .= ",trans_id varchar(255) not null default ''";
+$sql .= ",feedback text"; //反馈信息
 $sql .= ',primary key(id)) ENGINE=MyISAM DEFAULT CHARSET=utf8';
 if (!$mysqli->query($sql)) {
 	header('HTTP/1.0 500 Internal Server Error');

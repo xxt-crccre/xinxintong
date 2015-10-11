@@ -85,7 +85,7 @@ app.factory('Record', function($http) {
                 url += 'myFollowers';
                 break;
             default:
-                alert('没有指定要获得的登记记录类型');
+                alert('没有指定要获得的登记记录类型（' + ins.owner + '）');
                 return;
         }
         url += '?mpid=' + ins.mpid;
@@ -461,6 +461,7 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', 'Round', 'Record', 
         if (!validate()) return;
         if (document.querySelectorAll('.ng-invalid-required').length) {
             $scope.errmsg = '请填写必填项';
+            console.log('ng-invalid-required', document.querySelectorAll('.ng-invalid-required'));
             return;
         }
         if (r.files && r.files.length) {
@@ -580,18 +581,11 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', 'Round', 'Record', 
             el.height = body.clientHeight;
             body.scrollTop = 0;
             body.appendChild(el);
-            if (content.indexOf('http') === 0) {
-                window.closeAskFollow = function() {
-                    el.style.display = 'none';
-                };
-                el.setAttribute('src', content);
-                el.style.display = 'block';
-            } else {
-                if (el.contentDocument && el.contentDocument.body) {
-                    el.contentDocument.body.innerHTML = content;
-                    el.style.display = 'block';
-                }
-            }
+            window.closeAskFollow = function() {
+                el.style.display = 'none';
+            };
+            el.setAttribute('src', '/rest/app/enroll/askFollow?mpid=' + LS.p.mpid);
+            el.style.display = 'block';
         });
     };
     $scope.gotoPage = function(event, page, ek, rid, fansOnly) {
@@ -804,7 +798,31 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', 'Round', 'Record', 
         $timeout(function() {
             $scope.$broadcast('xxt.app.enroll.ready', params);
         });
-    });
+    }).error(function(content, httpCode) {
+        if (httpCode === 401) {
+            var el = document.createElement('iframe');
+            el.setAttribute('id', 'frmPopup');
+            el.onload = function() {
+                this.height = document.querySelector('body').clientHeight;
+            };
+            document.body.appendChild(el);
+            if (content.indexOf('http') === 0) {
+                window.onAuthSuccess = function() {
+                    el.style.display = 'none';
+                    btnSubmit && btnSubmit.removeAttribute('disabled');
+                };
+                el.setAttribute('src', content);
+                el.style.display = 'block';
+            } else {
+                if (el.contentDocument && el.contentDocument.body) {
+                    el.contentDocument.body.innerHTML = content;
+                    el.style.display = 'block';
+                }
+            }
+        } else {
+            $scope.errmsg = content;
+        }
+    });;
 }]);
 app.filter('value2Label', ['Schema', function(Schema) {
     var schemas;

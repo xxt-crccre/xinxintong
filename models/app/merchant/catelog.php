@@ -36,9 +36,31 @@ class catelog_model extends \TMS_MODEL {
 			$cate->properties = $cascaded->properties;
 			$cate->propValues = isset($cascaded->propValues) ? $cascaded->propValues : array();
 			$cate->orderProperties = isset($cascaded->orderProperties) ? $cascaded->orderProperties : array();
+			$cate->feedbackProperties = isset($cascaded->feedbackProperties) ? $cascaded->feedbackProperties : array();
 		}
 
 		return $catelogs;
+	}
+	/**
+	 *
+	 */
+	public function &byProductId($productId) {
+		$q = array(
+			'*',
+			'xxt_merchant_catelog c',
+			"exists(select 1 from xxt_merchant_product p where p.id=$productId and p.cate_id=c.id)",
+		);
+
+		$catelog = $this->query_obj_ss($q);
+		if ($catelog) {
+			$cascaded = $this->cascaded($catelog->id);
+			$catelog->properties = $cascaded->properties;
+			$catelog->propValues = isset($cascaded->propValues) ? $cascaded->propValues : array();
+			$catelog->orderProperties = isset($cascaded->orderProperties) ? $cascaded->orderProperties : array();
+			$catelog->feedbackProperties = isset($cascaded->feedbackProperties) ? $cascaded->feedbackProperties : array();
+		}
+
+		return $catelog;
 	}
 	/**
 	 * $id catelog's id
@@ -86,6 +108,17 @@ class catelog_model extends \TMS_MODEL {
 		$orderProperties = $this->query_objs_ss($q);
 
 		$cascaded->orderProperties = $orderProperties;
+		/**
+		 * feedback properties
+		 */
+		$q = array(
+			'*',
+			'xxt_merchant_order_feedback_property',
+			"cate_id=$id",
+		);
+		$properties = $this->query_objs_ss($q);
+
+		$cascaded->feedbackProperties = $properties;
 
 		return $cascaded;
 	}

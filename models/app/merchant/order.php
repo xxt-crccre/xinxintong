@@ -19,6 +19,20 @@ class order_model extends \TMS_MODEL {
 		return $order;
 	}
 	/**
+	 * @param string $tradeNo
+	 */
+	public function &byTradeNo($tradeNo) {
+		$q = array(
+			'*',
+			'xxt_merchant_order',
+			"trade_no='$tradeNo'",
+		);
+
+		$order = $this->query_obj_ss($q);
+
+		return $order;
+	}
+	/**
 	 * $id
 	 */
 	public function &byShopid($shopId, $openid = null) {
@@ -41,9 +55,15 @@ class order_model extends \TMS_MODEL {
 	 * 创建订单
 	 */
 	public function create($skuId, $user, $info) {
+		// 订单号
+		$trade_no = date('YmdHis') . mt_rand(100000, 999999);
+
 		$sku = \TMS_APP::M('app\merchant\sku')->byId($skuId);
 
+		$product = \TMS_APP::M('app\merchant\product')->byId($sku->prod_id);
+
 		if (empty($info->extPropValues)) {
+			$info->extPropValues = new \stdClass;
 			$epv = '{}';
 		} else {
 			$epv = new \stdClass;
@@ -54,6 +74,7 @@ class order_model extends \TMS_MODEL {
 		}
 
 		$order = array(
+			'trade_no' => $trade_no,
 			'mpid' => $sku->mpid,
 			'sid' => $sku->sid,
 			'order_status' => 1,
@@ -66,14 +87,15 @@ class order_model extends \TMS_MODEL {
 			'receiver_name' => $info->receiver_name,
 			'receiver_mobile' => $info->receiver_mobile,
 			'product_id' => $sku->prod_id,
-			'product_name' => '',
-			'product_img' => '',
+			'product_name' => $product->name,
+			'product_img' => $product->main_img,
 			'product_sku' => $skuId,
 			'product_price' => $sku->price,
 			'product_count' => $info->product_count,
 		);
 
 		$order['id'] = $this->insert('xxt_merchant_order', $order, true);
+		$order['extPropValue'] = $info->extPropValues;
 
 		return (object) $order;
 	}
