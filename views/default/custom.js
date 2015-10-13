@@ -6,6 +6,11 @@ if (/MicroMessenger/.test(navigator.userAgent)) {
     }
 }
 app = angular.module('xxt', ["ngSanitize"]);
+app.config(['$controllerProvider', function($cp) {
+    app.register = {
+        controller: $cp.register
+    };
+}]);
 app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $http, $timeout, $q) {
     var ls, mpid, id, shareby;
     ls = location.search;
@@ -26,11 +31,12 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $h
             url += "&shareby=" + shareby;
             $http.get(url);
         };
-        sharelink = location.href;
-        if (/shareby=/.test(sharelink))
-            sharelink = sharelink.replace(/shareby=[^&]*/, 'shareby=' + shareid);
-        else
-            sharelink += "&shareby=" + shareid;
+        sharelink = 'http://' + location.hostname + '/rest/mi/matter';
+        sharelink += '?mpid=' + mpid;
+        sharelink += '&type=article';
+        sharelink += '&id=' + id;
+        sharelink += '&tpl=cus';
+        sharelink += "&shareby=" + shareid;
         window.xxt.share.set($scope.article.title, sharelink, $scope.article.summary, $scope.article.pic);
     };
     var getArticle = function() {
@@ -39,6 +45,10 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $h
             var params, page, jslength;
             params = rsp.data;
             $scope.article = params.article;
+            $http.post('/rest/mi/matter/logAccess?mpid=' + mpid + '&id=' + id + '&type=article&title=' + $scope.article.title + '&shareby=' + shareby, {
+                search: location.search.replace('?', ''),
+                referer: document.referrer
+            });
             page = params.article.page;
             $scope.user = params.user;
             $scope.mpa = params.mpaccount;
