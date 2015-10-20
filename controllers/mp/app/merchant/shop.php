@@ -3,22 +3,46 @@ namespace mp\app\merchant;
 
 require_once dirname(dirname(__FILE__)) . '/base.php';
 /**
- * 商店管理
+ * 店铺
  */
 class shop extends \mp\app\app_base {
 	/**
-	 * 商店列表
+	 *
 	 */
-	public function index_action($id) {
-		$this->view_action('/mp/app/merchant/shop');
+	public function index_action($shop) {
+		$this->view_action('/mp/app/merchant/shop/base');
+	}
+	/**
+	 *
+	 */
+	public function catelog_action($shop) {
+		$this->view_action('/mp/app/merchant/shop/base');
+	}
+	/**
+	 *
+	 */
+	public function product_action($shop) {
+		$this->view_action('/mp/app/merchant/shop/base');
+	}
+	/**
+	 *
+	 */
+	public function page_action($shop) {
+		$this->view_action('/mp/app/merchant/shop/base');
+	}
+	/**
+	 *
+	 */
+	public function order_action($shop) {
+		$this->view_action('/mp/app/merchant/shop/base');
 	}
 	/**
 	 * 商店
 	 */
-	public function get_action($id) {
-		$shop = $this->model('app\merchant\shop')->byId($id);
+	public function get_action($shop) {
+		$shop = $this->model('app\merchant\shop')->byId($shop);
 
-		$shop->staffs = $this->model('app\merchant\shop')->staffAcls($this->mpid, $id, 'c');
+		$shop->staffs = $this->model('app\merchant\shop')->staffAcls($this->mpid, $shop->id, 'c');
 
 		return new \ResponseData($shop);
 	}
@@ -59,17 +83,17 @@ class shop extends \mp\app\app_base {
 	/**
 	 * 更新商店的属性信息
 	 */
-	public function update_action($id) {
+	public function update_action($shop) {
 		$nv = (array) $this->getPostJson();
 
-		$rst = $this->model()->update('xxt_merchant_shop', $nv, "id='$id'");
+		$rst = $this->model()->update('xxt_merchant_shop', $nv, "id='$shop'");
 
 		return new \ResponseData($rst);
 	}
 	/**
 	 * 按角色设置参与投稿活动的人
 	 */
-	public function setStaff_action($shopId, $role) {
+	public function setStaff_action($shop, $role) {
 		$user = $this->getPostJson();
 
 		if (empty($user->identity)) {
@@ -86,11 +110,12 @@ class shop extends \mp\app\app_base {
 			return new \ResponseData($rst);
 		} else {
 			$i['mpid'] = $this->mpid;
-			$i['shopid'] = $shopId;
+			$i['sid'] = $shop;
 			$i['role'] = $role;
 			$i['identity'] = $user->identity;
 			$i['idsrc'] = empty($user->idsrc) ? '' : $user->idsrc;
 			$i['label'] = empty($user->label) ? $user->identity : $user->label;
+
 			$i['id'] = $this->model()->insert('xxt_merchant_staff', $i, true);
 
 			return new \ResponseData($i);

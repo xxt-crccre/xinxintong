@@ -1,11 +1,6 @@
 (function() {
-    xxtApp.register.controller('catelogCtrl', ['$scope', '$modal', 'http2', function($scope, $modal, http2) {
-        $scope.$parent.subView = 'catelog';
-        $scope.get = function() {
-            http2.get('/rest/mp/app/merchant/catelog/get?shopId=' + $scope.shopId, function(rsp) {
-                $scope.catelogs = rsp.data;
-            });
-        };
+    xxtApp.register.controller('settingCtrl', ['$scope', '$modal', 'http2', function($scope, $modal, http2) {
+        $scope.$parent.subView = 'setting';
         $scope.open = function(catelog) {
             if (catelog.properties === undefined) {
                 http2.get('/rest/mp/app/merchant/catelog/cascaded?id=' + catelog.id, function(rsp) {
@@ -14,6 +9,11 @@
                 });
             } else
                 $scope.editing = catelog;
+        };
+        $scope.update = function(name) {
+            var nv = {};
+            nv[name] = $scope.editing[name];
+            http2.post('/rest/mp/app/merchant/shop/update?id=' + $scope.shopId, nv, function(rsp) {});
         };
         $scope.create = function() {
             http2.get('/rest/mp/app/merchant/catelog/create?shopId=' + $scope.shopId, function(rsp) {
@@ -54,7 +54,7 @@
                         prop.name = rsp.data.name;
                     });
                 else if (action.name === 'remove')
-                    http2.get('/rest/mp/app/merchant/catelog/propRemove?id=' + prop.id, function(rsp) {
+                    http2.get('/rest/mp/app/merchant/catelog/propRemove?property=' + prop.id, function(rsp) {
                         $scope.editing.properties.splice(index, 1);
                     });
             });
@@ -137,13 +137,25 @@
                     });
             });
         };
+        $scope.activate = function() {
+            http2.get('/rest/mp/app/merchant/catelog/activate?catelog=' + $scope.editing.id, function(rsp) {
+                $scope.editing.active = 'Y';
+            });
+        };
+        $scope.deactivate = function() {
+            http2.get('/rest/mp/app/merchant/catelog/deactivate?catelog=' + $scope.editing.id, function(rsp) {
+                $scope.editing.active = 'N';
+            });
+        };
         $scope.remove = function() {
-
+            http2.get('/rest/mp/app/merchant/catelog/remove?catelog=' + $scope.editing.id, function(rsp) {
+                location.href = '/rest/mp/app/merchant/shop/catelog?shop=' + $scope.$parent.shopId;
+            });
         };
         $scope.update = function(name) {
             var nv = {};
             nv[name] = $scope.editing[name];
-            http2.post('/rest/mp/app/merchant/catelog/update?id=' + $scope.editing.id, nv, function(rsp) {});
+            http2.post('/rest/mp/app/merchant/catelog/update?catelog=' + $scope.editing.id, nv, function(rsp) {});
         };
         $scope.get();
     }]);

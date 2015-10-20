@@ -5,14 +5,14 @@
         $scope.search = function() {
             var url;
             url = '/rest/mp/app/merchant/product/list';
-            url += '?shopId=' + $scope.shopId;
-            url += '&cateId=' + $scope.selectedCatelog.id;
+            url += '?shop=' + $scope.shopId;
+            url += '&catelog=' + $scope.selectedCatelog.id;
             http2.get(url, function(rsp) {
                 $scope.products = rsp.data;
             });
         };
         $scope.open = function(product) {
-            location.href = "/rest/mp/app/merchant/product/edit?shopId=" + $scope.shopId + "&id=" + product.id;
+            location.href = "/rest/mp/app/merchant/product?shop=" + $scope.shopId + "&product=" + product.id;
         };
         $scope.create = function() {
             $modal.open({
@@ -48,8 +48,12 @@
             $scope.products = [];
             $scope.search();
         };
-        http2.get('/rest/mp/app/merchant/catelog/get?shopId=' + $scope.shopId, function(rsp) {
+        http2.get('/rest/mp/app/merchant/catelog/list?shop=' + $scope.shopId, function(rsp) {
             $scope.catelogs = rsp.data;
+            if (rsp.data.length) {
+                $scope.selectedCatelog = rsp.data[0];
+                $scope.selectCatelog();
+            }
         });
     }]);
 })();

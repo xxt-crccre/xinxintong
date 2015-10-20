@@ -20,22 +20,27 @@ class product_model extends \TMS_MODEL {
 			$cascaded = $this->cascaded($id);
 			$prod->catelog = $cascaded->catelog;
 			$prod->propValue2 = $cascaded->propValue2;
-			$prod->skus = $cascaded->skus;
 		}
 
 		return $prod;
 	}
 	/**
 	 *
-	 * $shopId
-	 * $cateId
+	 *
+	 * @param int $shopId
+	 * @param int $cateId
+	 * @param array $state
+	 *
 	 */
-	public function &byShopId($shopId, $cateId) {
+	public function &byShopId($shopId, $cateId, $state = array()) {
 		$q = array(
 			'*',
 			'xxt_merchant_product p',
 			"sid=$shopId and cate_id=$cateId",
 		);
+		isset($state['disabled']) && $q[2] .= " and disabled='" . $state['disabled'] . "'";
+		isset($state['active']) && $q[2] .= " and active='" . $state['active'] . "'";
+
 		$q2 = array('o' => 'create_at desc');
 
 		$products = $this->query_objs_ss($q, $q2);
@@ -45,7 +50,7 @@ class product_model extends \TMS_MODEL {
 	/**
 	 * 根据属性值获得产品列表
 	 */
-	public function &byPropValue($cateId, $vids, $cascaded = 'Y') {
+	public function &byPropValue($cateId, $vids, $cascaded = 'Y', $state = array()) {
 		$q = array(
 			'*',
 			'xxt_merchant_product p',
@@ -54,6 +59,8 @@ class product_model extends \TMS_MODEL {
 		foreach ($vids as $vid) {
 			$q[2] .= " and prop_value like '%:\"$vid\"%'";
 		}
+		isset($state['disabled']) && $q[2] .= " and disabled='" . $state['disabled'] . "'";
+		isset($state['active']) && $q[2] .= " and active='" . $state['active'] . "'";
 
 		$products = $this->query_objs_ss($q);
 
@@ -111,17 +118,44 @@ class product_model extends \TMS_MODEL {
 		 */
 		$catelog->orderProperties = $cateCascaded->orderProperties;
 		$catelog->feedbackProperties = $cateCascaded->feedbackProperties;
-		/**
-		 * sku
-		 */
-		$q = array(
-			'*',
-			'xxt_merchant_product_sku',
-			"prod_id=$id",
-		);
-		$skus = $this->query_objs_ss($q);
-		$cascaded->skus = $skus;
 
 		return $cascaded;
+	}
+	/**
+	 *
+	 * @param int $productId
+	 */
+	public function remove($productId) {
+		/**/
+		$rst = $this->delete('xxt_merchant_product_sku', "prod_id=$productId");
+		$rst = $this->delete('xxt_merchant_product', "id=$productId");
+
+		return $rst;
+	}
+	/**
+	 *
+	 * @param int @catelogId
+	 */
+	public function refer($productId) {
+		$rst = $this->update(
+			'xxt_merchant_product',
+			array('used' => 'Y'),
+			"id=$productId"
+		);
+
+		return $rst;
+	}
+	/**
+	 *
+	 * @param int @catelogId
+	 */
+	public function disable($productId) {
+		$rst = $this->update(
+			'xxt_merchant_product',
+			array('disabled' => 'Y', 'active' => 'N'),
+			"id=$productId"
+		);
+
+		return $rst;
 	}
 }
