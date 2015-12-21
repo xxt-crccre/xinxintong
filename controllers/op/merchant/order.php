@@ -29,7 +29,7 @@ class order extends \member_base {
 		// current visitor
 		$user = $this->getUser($mpid);
 		// page
-		$page = $this->model('app\merchant\page')->byType($shop, 'op.order');
+		$page = $this->model('app\merchant\page')->byType('op.order', $shop);
 		if (empty($page)) {
 			return new \ResponseError('没有获得订单页定义');
 		}
@@ -51,43 +51,84 @@ class order extends \member_base {
 		//    return new \ResponseError('无法获得当前用户身份信息');
 		//
 		$order = $this->model('app\merchant\order')->byId($order);
+		$skus = $order->skus;
 
-		$modelProd = $this->model('app\merchant\product');
-		$prod = $modelProd->byId($order->product_id);
-		$cascaded = $modelProd->cascaded($prod->id);
-
-		$prodPropValues = array();
-		foreach ($cascaded->catelog->properties as $prop) {
-			$prodPropValues[] = array(
-				'name' => $prop->name,
-				'value' => $cascaded->propValue2->{$prop->id}->name,
+		/*按分类和商品对sku进行分组*/
+		$catelogs = array();
+		if (!empty($skus)) {
+			$modelCate = $this->model('app\merchant\catelog');
+			$modelProd = $this->model('app\merchant\product');
+			$modelSku = $this->model('app\merchant\sku');
+			$cateFields = 'id,name,pattern,pages';
+			$prodFields = 'id,name,main_img,img,detail_text,detail_text,prop_value,buy_limit,sku_info';
+			$cateSkuOptions = array(
+				'fields' => 'id,name,has_validity,require_pay',
 			);
+			$skuOptions = array(
+				'cascaded' => 'N',
+				'fields' => 'id,cate_id,cate_sku_id,prod_id,icon_url,price,ori_price,quantity,validity_begin_at,validity_end_at,sku_value',
+			);
+			foreach ($skus as &$sku) {
+				$sku = $modelSku->byId($sku->sku_id, $skuOptions);
+				if (!isset($catelogs[$sku->cate_id])) {
+					/*catelog*/
+					$catelog = $modelCate->byId($sku->cate_id, array('fields' => $cateFields, 'cascaded' => 'Y'));
+					$catelog->pages = isset($catelog->pages) ? json_decode($catelog->pages) : new \stdClass;
+					$catelog->products = array();
+					$catelogs[$catelog->id] = &$catelog;
+					/*product*/
+					$product = $modelProd->byId($sku->prod_id, array('cascaded' => 'N', 'fields' => $prodFields, 'catelog' => $catelog));
+					$product->cateSkus = array();
+					/*catelog sku*/
+					$cateSku = $modelCate->skuById($sku->cate_sku_id, $cateSkuOptions);
+					$cateSku->skus = array($sku);
+					$product->cateSkus[$cateSku->id] = $cateSku;
+					$catelog->products[$product->id] = $product;
+				} else {
+					$catelog = &$catelogs[$sku->cate_id];
+					if (!isset($catelog->products[$sku->prod_id])) {
+						$product = $modelProd->byId($sku->prod_id, array('cascaded' => 'N', 'fields' => $prodFields, 'catelog' => $catelog));
+						$product->cateSkus = array();
+						/*catelog sku*/
+						$cateSku = $modelCate->skuById($sku->cate_sku_id, $cateSkuOptions);
+						$cateSku->skus = array($sku);
+						$product->cateSkus[$cateSku->id] = $cateSku;
+					} else {
+						$product = $catelog->products[$sku->prod_id];
+						if (!isset($product->cateSkus[$sku->cate_sku_id])) {
+							/*catelog sku*/
+							$cateSku = $modelCate->skuById($sku->cate_sku_id, $cateSkuOptions);
+							$cateSku->skus = array($sku);
+							$product->cateSkus[$cateSku->id] = $cateSku;
+						} else {
+							$product->cateSkus[$sku->cate_sku_id]->skus[] = $sku;
+						}
+					}
+				}
+				unset($sku->cate_id);
+				unset($sku->cate_sku_id);
+				unset($sku->prod_id);
+			}
 		}
-		$prod->propValues = $prodPropValues;
 
-		return new \ResponseData(array('order' => $order, 'product' => $prod, 'catelog' => $cascaded->catelog, 'propValues' => $cascaded->propValue2));
+		return new \ResponseData(array('order' => $order, 'catelogs' => $catelogs));
 	}
 	/**
 	 * 保存订单反馈信息并通知用户
 	 */
-	public function feedback_action($mpid, $shop, $order) {
+	public function feedback_action($mpid, $order) {
 		$order = $this->model('app\merchant\order')->byId($order);
 		$order->extPropValue = json_decode($order->ext_prop_value);
 
 		$feedback = $this->getPostJson();
+		$pv = empty($feedback) ? '{}' : \TMS_MODEL::toJson($feedback);
 
-		if (empty($feedback)) {
-			$pv = '{}';
-		} else {
-			$pv = new \stdClass;
-			foreach ($feedback as $k => $v) {
-				$pv->{$k} = urlencode($v);
-			}
-			$pv = urldecode(json_encode($pv));
-		}
 		$rst = $this->model()->update(
 			'xxt_merchant_order',
-			array('feedback' => $pv),
+			array(
+				'feedback' => $pv,
+				'order_status' => 3, // 已确认
+			),
 			"id=$order->id"
 		);
 		/*发通知*/
@@ -97,59 +138,82 @@ class order extends \member_base {
 		return new \ResponseData($rst);
 	}
 	/**
+	 *
+	 */
+	public function finish_action($mpid, $order) {
+		$modelOrd = $this->model('app\merchant\order');
+		$rst = $modelOrd->finish($order);
+		// notify
+
+		return new \ResponseData($rst);
+	}
+	/**
+	 *
+	 */
+	public function cancel_action($mpid, $order) {
+		$modelOrd = $this->model('app\merchant\order');
+		$rst = $modelOrd->cancel($order);
+		// notify
+
+		return new \ResponseData($rst);
+	}
+	/**
 	 * 通知客服有新订单
 	 */
 	public function notify($mpid, $order) {
-		/**/
-		$product = $this->model('app\merchant\product')->byId($order->product_id, 'Y');
+		$modelProd = $this->model('app\merchant\product');
 		$modelTmpl = $this->model('matter\tmplmsg');
-		$mapping = $modelTmpl->mappingById($product->catelog->feedback_order_tmplmsg);
-		if (false === $mapping) {
-			return false;
-		}
-		/**/
-		$tmplmsg = $modelTmpl->byId($mapping->msgid, 'Y');
-		if (empty($tmplmsg->params)) {
-			return false;
-		}
-		/*构造消息数据*/
-		$data = array();
-		foreach ($mapping->mapping as $k => $p) {
-			$v = '';
-			switch ($p->src) {
-			case 'product':
-				if ($p->id === '__productName') {
-					$v = $product->name;
-				} else {
-					$v = $product->propValue2->{$p->id}->name;
-				}
-				break;
-			case 'order':
-				if ($p->id === '__orderSn') {
-					$v = $order->trade_no;
-				} else if ($p->id === '__orderState') {
-					$v = '未付款';
-				} else {
-					$v = $order->extPropValue->{$p->id};
-				}
-				break;
-			case 'feedback':
-				$v = $order->feedback->{$p->id};
-				break;
-			case 'text':
-				$v = $p->id;
-				break;
+		$products = json_decode($order->products);
+		foreach ($products as $product) {
+			/**/
+			$product = $modelProd->byId($product->id, array('cascaded' => 'Y'));
+			$mapping = $modelTmpl->mappingById($product->catelog->feedback_order_tmplmsg);
+			if (false === $mapping) {
+				return false;
 			}
-			$data[$k] = $v;
+			/**/
+			$tmplmsg = $modelTmpl->byId($mapping->msgid, array('cascaded' => 'Y'));
+			if (empty($tmplmsg->params)) {
+				return false;
+			}
+			/*构造消息数据*/
+			$data = array();
+			foreach ($mapping->mapping as $k => $p) {
+				$v = '';
+				switch ($p->src) {
+				case 'product':
+					if ($p->id === '__productName') {
+						$v = $product->name;
+					} else {
+						$v = $product->propValue->{$p->id}->name;
+					}
+					break;
+				case 'order':
+					if ($p->id === '__orderSn') {
+						$v = $order->trade_no;
+					} else if ($p->id === '__orderState') {
+						$v = '未付款';
+					} else {
+						$v = $order->extPropValue->{$product->catelog->id}->{$p->id};
+					}
+					break;
+				case 'feedback':
+					$v = $order->feedback->{$product->catelog->id}->{$p->id};
+					break;
+				case 'text':
+					$v = $p->id;
+					break;
+				}
+				$data[$k] = $v;
+			}
+			/**/
+			$url = 'http://' . $_SERVER['HTTP_HOST'] . "/rest/app/merchant/order";
+			$url .= "?mpid=" . $mpid;
+			$url .= "&shop=" . $order->sid;
+			$url .= "&order=" . $order->id;
+			/**/
+			$this->tmplmsgSendByOpenid($mpid, $tmplmsg->id, $order->buyer_openid, $data, $url);
 		}
-		/**/
-		$url = 'http://' . $_SERVER['HTTP_HOST'] . "/rest/app/merchant/order";
-		$url .= "?mpid=" . $mpid;
-		$url .= "&shop=" . $order->sid;
-		$url .= "&order=" . $order->id;
-		/**/
-		$this->tmplmsgSendByOpenid($mpid, $tmplmsg->id, $order->buyer_openid, $data, $url);
-
 		return true;
 	}
 }

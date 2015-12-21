@@ -21,12 +21,16 @@
             value: 'enroll',
             title: '登记活动',
             url: '/rest/mp/app'
-        }, ];
+        }];
         $scope.doSearch = function(page) {
             var url;
             page && ($scope.page.at = page);
             url = '/rest/mp/app/enroll/record/get';
             url += '?aid=' + $scope.aid;
+            if ($scope.editing.can_signin === 'Y') {
+                url += '&signinStartAt=' + $scope.signinStartAt;
+                url += '&signinEndAt=' + $scope.signinEndAt;
+            }
             url += '&tags=' + $scope.page.tags.join(',');
             url += $scope.page.joinParams();
             http2.get(url, function(rsp) {
@@ -34,7 +38,7 @@
                 if (rsp.data) {
                     $scope.records = rsp.data.records ? rsp.data.records : [];
                     rsp.data.total && ($scope.page.total = rsp.data.total);
-                    rsp.data.schema && ($scope.cols = rsp.data.schema);
+                    rsp.data.schema && ($scope.schema = rsp.data.schema);
                 } else
                     $scope.records = [];
                 for (i = 0, j = $scope.records.length; i < j; i++) {
@@ -43,6 +47,7 @@
                 }
             });
         };
+        $scope.filterByData = {};
         $scope.page = {
             at: 1,
             size: 30,
@@ -79,8 +84,58 @@
             n: '评论数',
             v: 'remark'
         }];
+        var current, startAt, endAt;
+        current = new Date();
+        startAt = {
+            year: current.getFullYear(),
+            month: current.getMonth() + 1,
+            mday: current.getDate(),
+            getTime: function() {
+                var d = new Date(this.year, this.month - 1, this.mday, 0, 0, 0, 0);
+                return d.getTime();
+            }
+        };
+        endAt = {
+            year: current.getFullYear(),
+            month: current.getMonth() + 1,
+            mday: current.getDate(),
+            getTime: function() {
+                var d = new Date(this.year, this.month - 1, this.mday, 23, 59, 59, 0);
+                return d.getTime();
+            }
+        };
+        $scope.signinStartAt = startAt.getTime() / 1000;
+        $scope.signinEndAt = endAt.getTime() / 1000;
         $scope.selected = {};
         $scope.selectAll;
+        $scope.setFilterByData = function() {
+            $modal.open({
+                templateUrl: 'recordFilter.html',
+                controller: ['$scope', '$modalInstance', function($scope2, $mi) {
+                    $scope2.filter = angular.copy($scope.filter);
+                    $scope2.schema = [];
+                    angular.forEach($scope.schema, function(def) {
+                        if (['img', 'file', 'datetime'].indexOf(def.type) === -1) {
+                            $scope2.schema.push(def);
+                        }
+                    });
+                    console.log('sss', $scope2.schema);
+                    $scope2.cancel = function() {
+                        $mi.dismiss();
+                    };
+                    $scope2.ok = function() {
+                        $mi.close($scope2.filter);
+                    };
+                }],
+                backdrop: 'static'
+            }).result.then(function(data) {
+                $scope.filter = data;
+            });
+        };
+        $scope.$on('xxt.tms-datepicker.change', function(evt, data) {
+            $scope[data.state] = data.value;
+            $scope.doSearch(1);
+        });
         $scope.$on('search-tag.xxt.combox.done', function(event, aSelected) {
             $scope.page.tags = $scope.page.tags.concat(aSelected);
             $scope.doSearch();
@@ -91,9 +146,9 @@
             $scope.doSearch();
         });
         $scope.$on('batch-tag.xxt.combox.done', function(event, aSelected) {
-            var i, record, records = [],
-                eks = [],
-                posted;
+            var i, record, records, eks, posted;
+            records = [];
+            eks = [];
             for (i in $scope.selected) {
                 if ($scope.selected) {
                     record = $scope.records[i];
@@ -113,11 +168,12 @@
                         record = records[i];
                         if (!record.tags || record.length === 0) {
                             record.tags = aSelected.join(',');
-                        } else
+                        } else {
                             for (m = 0; m < n; m++) {
                                 newTag = aSelected[m];
                                 (',' + record.tags + ',').indexOf(newTag) === -1 && (record.tags += ',' + newTag);
                             }
+                        }
                     }
                 });
             }
@@ -157,10 +213,10 @@
         $scope.value2Label = function(val, key) {
             var i, j, s, aVal, aLab = [];
             if (val === undefined) return '';
-            for (i = 0, j = $scope.cols.length; i < j; i++) {
-                s = $scope.cols[i];
-                if ($scope.cols[i].id === key) {
-                    s = $scope.cols[i];
+            for (i = 0, j = $scope.schema.length; i < j; i++) {
+                s = $scope.schema[i];
+                if ($scope.schema[i].id === key) {
+                    s = $scope.schema[i];
                     break;
                 }
             }
@@ -194,16 +250,17 @@
                         record.aid = $scope.aid;
                         return record;
                     },
-                    cols: function() {
-                        return $scope.cols;
+                    schema: function() {
+                        return $scope.schema;
                     }
                 }
             }).result.then(function(updated) {
-                var p = updated[0],
+                var p, tags;
+                p = updated[0];
+                http2.post('/rest/mp/app/enroll/record/update?aid=' + $scope.aid + '&ek=' + record.enroll_key, p, function(rsp) {
                     tags = updated[1];
-                $scope.editing.tags = tags;
-                $scope.update('tags');
-                http2.post('/rest/mp/app/enroll/record/update?aid=' + $scope.aid + '&ek=' + record.enroll_key, p);
+                    $scope.editing.tags = tags;
+                });
             });
         };
         $scope.addRecord = function() {
@@ -221,18 +278,16 @@
                             tags: ''
                         };
                     },
-                    cols: function() {
-                        return $scope.cols;
+                    schema: function() {
+                        return $scope.schema;
                     }
                 }
             }).result.then(function(updated) {
-                var p = updated[0],
-                    tags = updated[1];
-                if ($scope.editing.tags.length !== tags.length) {
-                    $scope.editing.tags = tags;
-                    $scope.update('tags');
-                }
+                var p, tags;
+                p = updated[0];
+                tags = updated[1];
                 http2.post('/rest/mp/app/enroll/record/add?aid=' + $scope.aid, p, function(rsp) {
+                    $scope.editing.tags = tags;
                     $scope.records.splice(0, 0, rsp.data);
                 });
             });
@@ -260,18 +315,6 @@
                 }
             });
         };
-        $scope.importApp = function() {
-            $modal.open({
-                templateUrl: 'importApp.html',
-                controller: 'importAppCtrl',
-                backdrop: 'static',
-                size: 'lg'
-            }).result.then(function(param) {
-                http2.post('/rest/mp/app/enroll/record/importApp?aid=' + $scope.aid, param, function(rsp) {
-                    $scope.doSearch(1);
-                });
-            });
-        };
         $scope.removeRecord = function(record) {
             if (window.confirm('确认删除？')) {
                 http2.get('/rest/mp/app/enroll/record/remove?aid=' + $scope.aid + '&key=' + record.enroll_key, function(rsp) {
@@ -297,48 +340,29 @@
                     $scope.selected[i] = nv;
                 }
         });
-        $scope.doSearch();
-    }]);
-    xxtApp.register.controller('importAppCtrl', ['$scope', 'http2', '$modalInstance', function($scope, http2, $modalInstance) {
-        $scope.param = {
-            checkedActs: [],
-            checkedWalls: [],
-            wallUserState: 'active',
-            alg: 'inter'
-        };
-        $scope.changeAct = function(act) {
-            var i = $scope.param.checkedActs.indexOf(act.aid);
-            if (i === -1)
-                $scope.param.checkedActs.push(act.aid);
-            else
-                $scope.param.checkedActs.splice(i, 1);
-        };
-        $scope.changeWall = function(wall) {
-            var i = $scope.param.checkedWalls.indexOf(wall.wid);
-            if (i === -1)
-                $scope.param.checkedWalls.push(wall.wid);
-            else
-                $scope.param.checkedWalls.splice(i, 1);
-        };
-        $scope.cancel = function() {
-            $modalInstance.dismiss();
-        };
-        $scope.ok = function() {
-            $modalInstance.close($scope.param);
-        };
-        http2.get('/rest/mp/app/enroll/get?page=1&size=999', function(rsp) {
-            $scope.activities = rsp.data[0];
-        });
-        http2.get('/rest/mp/app/wall/get', function(rsp) {
-            $scope.walls = rsp.data;
+        $scope.$watch('editing', function(nv) {
+            if (nv) {
+                $scope.doSearch();
+            }
         });
     }]);
-    xxtApp.register.controller('editorCtrl', ['$scope', '$modalInstance', 'enroll', 'record', 'cols', function($scope, $modalInstance, enroll, record, cols) {
+    xxtApp.register.controller('editorCtrl', ['$scope', '$modalInstance', '$sce', 'enroll', 'record', 'schema', function($scope, $modalInstance, $sce, enroll, record, schema) {
+        var p, col, files;
+        for (p in schema) {
+            col = schema[p];
+            if (col.type === 'file') {
+                files = JSON.parse(record.data[col.id]);
+                angular.forEach(files, function(file) {
+                    file.url = $sce.trustAsResourceUrl(file.url);
+                });
+                record.data[col.id] = files;
+            }
+        }
         $scope.enroll = enroll;
         $scope.record = record;
         $scope.record.aTags = (!record.tags || record.tags.length === 0) ? [] : record.tags.split(',');
         $scope.aTags = enroll.tags;
-        $scope.cols = cols;
+        $scope.schema = schema;
         $scope.json2Obj = function(json) {
             if (json && json.length) {
                 obj = JSON.parse(json);
@@ -359,8 +383,8 @@
             $scope.record.tags = p.tags;
             if ($scope.record.id)
                 p.signin_at = $scope.record.signin_at;
-            for (var c in $scope.cols) {
-                col = $scope.cols[c];
+            for (var c in $scope.schema) {
+                col = $scope.schema[c];
                 p.data[col.id] = $scope.record.data[col.id];
             }
             $modalInstance.close([p, $scope.aTags]);

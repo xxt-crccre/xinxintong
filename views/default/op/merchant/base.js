@@ -15,13 +15,33 @@ window.setPage = function(page) {
         });
     }
     if (page.ext_js && page.ext_js.length) {
-        angular.forEach(page.ext_js, function(js) {
-            $.getScript(js.url);
-        });
-    }
-    if (page.js && page.js.length) {
+        var i, l, loadJs;
+        i = 0;
+        l = page.ext_js.length;
+        loadJs = function() {
+            var js;
+            js = page.ext_js[i];
+            $.getScript(js.url, function() {
+                i++;
+                if (i === l) {
+                    if (page.js && page.js.length) {
+                        $scope.$apply(
+                            function dynamicjs() {
+                                eval(page.js);
+                                $scope.Page = params.page;
+                            }
+                        );
+                    }
+                } else {
+                    loadJs();
+                }
+            });
+        };
+        loadJs();
+    } else if (page.js && page.js.length) {
         (function dynamicjs() {
             eval(page.js);
+            $scope.Page = params.page;
         })();
     }
 };
@@ -85,6 +105,48 @@ app.factory('Order', function($http, $q) {
             }
             if (rsp.err_code != 0) {
                 alert(rsp.data);
+                return;
+            }
+            deferred.resolve(rsp.data);
+        });
+        return promise;
+    };
+    Order.prototype.finish = function(orderId) {
+        var deferred, promise, url;
+        deferred = $q.defer();
+        promise = deferred.promise;
+        url = '/rest/op/merchant/order/finish';
+        url += '?mpid=' + this.mpid;
+        url += '&shop=' + this.shopId;
+        url += '&order=' + orderId;
+        $http.get(url).success(function(rsp) {
+            if (typeof rsp === 'undefined') {
+                alert(rsp);
+                return;
+            }
+            if (rsp.err_code != 0) {
+                alert(rsp.err_msg);
+                return;
+            }
+            deferred.resolve(rsp.data);
+        });
+        return promise;
+    };
+    Order.prototype.cancel = function(orderId) {
+        var deferred, promise, url;
+        deferred = $q.defer();
+        promise = deferred.promise;
+        url = '/rest/op/merchant/order/cancel';
+        url += '?mpid=' + this.mpid;
+        url += '&shop=' + this.shopId;
+        url += '&order=' + orderId;
+        $http.get(url).success(function(rsp) {
+            if (typeof rsp === 'undefined') {
+                alert(rsp);
+                return;
+            }
+            if (rsp.err_code != 0) {
+                alert(rsp.err_msg);
                 return;
             }
             deferred.resolve(rsp.data);

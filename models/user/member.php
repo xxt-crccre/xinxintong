@@ -130,13 +130,13 @@ class member_model extends TMS_MODEL {
 		 * 处理访问口令
 		 */
 		/*if ($attrs->attr_password[0] === '0') {
-		if (empty($member->password) || strlen($member->password) < 6)
-		return array(false, '密码长度不符合要求');
-		$salt = $this->gen_salt();
-		$cpw = $this->compile_password($member->authed_identity, $member->password, $salt);
-		$member->password = $cpw;
-		$member->password_salt = $salt;
-		}*/
+			if (empty($member->password) || strlen($member->password) < 6)
+			return array(false, '密码长度不符合要求');
+			$salt = $this->gen_salt();
+			$cpw = $this->compile_password($member->authed_identity, $member->password, $salt);
+			$member->password = $cpw;
+			$member->password_salt = $salt;
+		*/
 
 		$create_at = time();
 		$mid = md5(uniqid() . $create_at); //member's id
@@ -236,13 +236,13 @@ class member_model extends TMS_MODEL {
 		 * 处理访问口令
 		 */
 		/*if ($attrs->attr_password[0] === '0') {
-		if (empty($member->password) || strlen($member->password) < 6)
-		return array(false, '密码长度不符合要求');
-		$salt = $this->gen_salt();
-		$cpw = $this->compile_password($member->authed_identity, $member->password, $salt);
-		$member->password = $cpw;
-		$member->password_salt = $salt;
-		}*/
+			if (empty($member->password) || strlen($member->password) < 6)
+			return array(false, '密码长度不符合要求');
+			$salt = $this->gen_salt();
+			$cpw = $this->compile_password($member->authed_identity, $member->password, $salt);
+			$member->password = $cpw;
+			$member->password_salt = $salt;
+		*/
 		/**
 		 * 扩展属性
 		 */
@@ -445,10 +445,7 @@ class member_model extends TMS_MODEL {
 	 * $items array 用户认证信息定义
 	 * 0:hidden,1:mandatory,2:unique,3:immuatable,4:verification,5:identity
 	 */
-	public function findMember($member, $attrs) {
-		//empty($member->mpid) && die('mpid is empty.');
-
-		//$mpid = $member->mpid;
+	public function findMember($member, $attrs, $checkPassword = true) {
 		if (isset($member->mobile) && $attrs->attr_mobile[5] === '1') {
 			/**
 			 * 手机号唯一
@@ -468,7 +465,7 @@ class member_model extends TMS_MODEL {
 			);
 			$found = $this->query_obj_ss($q);
 			if (!empty($found)) {
-				if ($attrs->attr_password[0] === '0') {
+				if ($checkPassword && $attrs->attr_password[0] === '0') {
 					/**
 					 * 检查口令
 					 */
@@ -476,12 +473,25 @@ class member_model extends TMS_MODEL {
 					if ($cpw !== $found->password) {
 						return false;
 					}
-
 				}
 			}
 		}
 
 		return !empty($found) ? $found->mid : false;
+	}
+	/**
+	 *
+	 */
+	public function &search($mpid, $identity, $options = array()) {
+		$fields = isset($options['fields']) ? $options['fields'] : '*';
+		$q = array(
+			$fields,
+			'xxt_member',
+			"mpid='$mpid' and forbidden='N' and (mobile='$identity' or email='$identity')",
+		);
+		$members = $this->query_objs_ss($q);
+
+		return $members;
 	}
 	/**
 	 *

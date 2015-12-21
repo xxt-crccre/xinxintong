@@ -58,19 +58,21 @@ class record_model extends \TMS_MODEL {
 			} else if ($activeRound = $this->M('app\enroll\round')->getActive($mpid, $aid)) {
 				$rid = $activeRound->rid;
 			}
+			$signinStartAt = isset($options->signinStartAt) ? $options->signinStartAt : null;
+			$signinEndAt = isset($options->signinEndAt) ? $options->signinEndAt : null;
 			$kw = isset($options->kw) ? $options->kw : null;
 			$by = isset($options->by) ? $options->by : null;
 		}
 		$modelApp = $this->M('app\enroll');
 		/* 获得活动的定义 */
-		$act = $modelApp->byId($aid);
+		$app = $modelApp->byId($aid);
 		$result = new \stdClass; // 返回的结果
 		$result->total = 0;
 		/* 获得数据项定义 */
 		$modelPage = $this->M('app\enroll\page');
-		$result->schema = $modelPage->schemaByEnroll($aid);
+		$result->schema = $modelPage->schemaByApp($aid);
 		/* 获得登记数据 */
-		$w = "e.state=1 and e.mpid='$mpid' and aid='$aid'";
+		$w = "e.state=1 and e.mpid='$mpid' and e.aid='$aid'";
 		if (!empty($creater)) {
 			$w .= " and e.openid='$creater'";
 		} else if (!empty($inviter)) {
@@ -81,40 +83,42 @@ class record_model extends \TMS_MODEL {
 		if (!empty($kw) && !empty($by)) {
 			switch ($by) {
 			case 'mobile':
-				$kw && $w .= " and mobile like '%$kw%'";
+				$kw && $w .= " and m.mobile like '%$kw%'";
 				break;
 			case 'nickname':
-				$kw && $w .= " and f.nickname like '%$kw%'";
+				$kw && $w .= " and e.nickname like '%$kw%'";
 				break;
 			}
 		}
-		// tags
+		/*签到时间*/
+		//if (!empty($signinStartAt) && !empty($signinEndAt)) {
+		//	$w .= " and exists(select 1 from xxt_enroll_signin_log l";
+		//	$w .= " where l.signin_at>=$signinStartAt and l.signin_at<=$signinEndAt and l.enroll_key=e.enroll_key";
+		//	$w .= ")";
+		//}
+		/*tags*/
 		if (!empty($options->tags)) {
 			$aTags = explode(',', $options->tags);
 			foreach ($aTags as $tag) {
 				$w .= "and concat(',',e.tags,',') like '%,$tag,%'";
 			}
 		}
-		if ($act->access_control === 'Y') {
+		if ($app->access_control === 'Y') {
 			$q = array(
-				'e.enroll_key,e.enroll_at,e.signin_at,e.tags,e.follower_num,e.score,e.remark_num,m.mid,m.name,m.mobile,m.email,m.nickname,m.openid',
+				'e.enroll_key,e.enroll_at,e.signin_at,e.tags,e.follower_num,e.score,e.remark_num,e.nickname,e.openid,m.mid,m.name,m.mobile,m.email',
 				"xxt_enroll_record e left join xxt_member m on m.forbidden='N' and e.mid=m.mid",
 				$w,
 			);
 		} else {
-			/*$q = array(
-			'e.enroll_key,e.enroll_at,e.signin_at,e.tags,e.follower_num,e.score,s.score myscore,e.remark_num,f.fid,f.nickname,f.openid,f.headimgurl',
-			"xxt_enroll_record e left join xxt_fans f on e.mpid=f.mpid and e.openid=f.openid left join xxt_enroll_record_score s on s.enroll_key=e.enroll_key and s.openid='$visitor'",
-			$w,
-			);*/
 			$q = array(
-				'e.enroll_key,e.enroll_at,e.signin_at,e.tags,e.follower_num,e.score,e.remark_num,f.fid,f.nickname,f.openid,f.headimgurl',
-				"xxt_enroll_record e left join xxt_fans f on e.mpid=f.mpid and e.openid=f.openid",
+				'e.enroll_key,e.enroll_at,e.signin_at,e.tags,e.follower_num,e.score,e.remark_num,e.nickname,e.openid',
+				"xxt_enroll_record e",
 				$w,
 			);
 		}
-		$q2['r']['o'] = ($page - 1) * $size;
-		$q2['r']['l'] = $size;
+		$q2 = array(
+			'r' => array('o' => ($page - 1) * $size, 'l' => $size),
+		);
 		switch ($orderby) {
 		case 'time':
 			$q2['o'] = 'e.enroll_at desc';
@@ -131,9 +135,9 @@ class record_model extends \TMS_MODEL {
 		default:
 			$q2['o'] = 'e.enroll_at desc';
 		}
-		/* 获得填写的登记数据 */
 		if ($records = $this->query_objs_ss($q, $q2)) {
 			foreach ($records as &$r) {
+				/* 获得填写的登记数据 */
 				$qc = array(
 					'name,value',
 					'xxt_enroll_record_data',
@@ -143,6 +147,42 @@ class record_model extends \TMS_MODEL {
 				$r->data = new \stdClass;
 				foreach ($cds as $cd) {
 					$r->data->{$cd->name} = $cd->value;
+				}
+				/*获得点赞记录*/
+				$app->can_like_record === 'Y' && $r->likers = $this->likers($r->enroll_key, 1, 3);
+				/*获得签到记录*/
+				if ($app->can_signin === 'Y') {
+					$qs = array(
+						'signin_at',
+						'xxt_enroll_signin_log',
+						"enroll_key='$r->enroll_key'",
+					);
+					$qs2 = array('o' => 'signin_at desc');
+					$r->signinLogs = $this->query_objs_ss($qs, $qs2);
+				}
+				/*获得邀请数据*/
+				if ($app->can_invite === 'Y') {
+					$qf = array(
+						'id,enroll_key,enroll_at,openid,nickname',
+						'xxt_enroll_record',
+						"aid='$aid' and referrer='ek:$r->enroll_key'",
+					);
+					$qf2 = array('o' => 'enroll_at');
+					$r->followers = $this->query_objs_ss($qf, $qf2);
+				}
+				/*获得关联抽奖活动记录*/
+				$ql = array(
+					'award_title',
+					'xxt_lottery_log',
+					"enroll_key='$r->enroll_key'",
+				);
+				$lotteryResult = $this->query_objs_ss($ql);
+				if (!empty($lotteryResult)) {
+					$lrs = array();
+					foreach ($lotteryResult as $lr) {
+						$lrs[] = $lr->award_title;
+					}
+					$r->data->lotteryResult = implode(',', $lrs);
 				}
 			}
 			$result->records = $records;
@@ -185,16 +225,16 @@ class record_model extends \TMS_MODEL {
 	 * 获得指定用户最后一次登记记录
 	 * 如果设置轮次，只返回当前轮次的情况
 	 */
-	public function getLast($mpid, $aid, $openid) {
+	public function getLast($mpid, $aid, $openid, $options = array()) {
+		$fields = isset($options['fields']) ? $options['fields'] : '*';
 		$q = array(
-			'*',
+			$fields,
 			'xxt_enroll_record',
 			"state=1 and mpid='$mpid' and aid='$aid' and openid='$openid'",
 		);
 		if ($activeRound = \TMS_APP::M('app\enroll\round')->getActive($mpid, $aid)) {
 			$q[2] .= " and rid='$activeRound->rid'";
 		}
-
 		$q2 = array(
 			'o' => 'enroll_at desc',
 			'r' => array('o' => 0, 'l' => 1),
@@ -211,6 +251,22 @@ class record_model extends \TMS_MODEL {
 		$last = $this->getLast($mpid, $aid, $openid);
 
 		return $last ? $last->enroll_key : false;
+	}
+	/**
+	 *
+	 */
+	public function hasAcceptedInvite($aid, $openid, $ek) {
+		$q = array(
+			'enroll_key',
+			'xxt_enroll_record',
+			"aid='$aid' and openid='$openid' and referrer='ek:$ek'",
+		);
+		$records = $this->query_objs_ss($q);
+		if (empty($records)) {
+			return false;
+		} else {
+			return $records[0]->enroll_key;
+		}
 	}
 	/**
 	 * 获得一条登记记录的数据
@@ -235,9 +291,9 @@ class record_model extends \TMS_MODEL {
 	 */
 	public function &remarks($ek, $page = 1, $size = 30) {
 		$q = array(
-			'r.*,f.nickname',
-			'xxt_enroll_record e, xxt_enroll_record_remark r, xxt_fans f',
-			"e.enroll_key='$ek' and e.enroll_key=r.enroll_key and e.mpid=f.mpid and r.openid=f.openid",
+			'r.*',
+			'xxt_enroll_record_remark r',
+			"r.enroll_key='$ek'",
 		);
 		$q2 = array(
 			'o' => 'r.create_at',
@@ -249,8 +305,9 @@ class record_model extends \TMS_MODEL {
 		return $remarks;
 	}
 	/*
-	 * 所有发表过评论的用户
-	 */
+			* 所有发表过评论的用户
+		 * @param string $ek
+	*/
 	public function &remarkers($ek) {
 		$q = array(
 			'distinct openid',
@@ -260,6 +317,43 @@ class record_model extends \TMS_MODEL {
 		$remarkers = $this->query_objs_ss($q);
 
 		return $remarkers;
+	}
+	/**
+	 * 返回对指定记录点赞的人
+	 * @param string $ek
+	 */
+	public function &likers($ek, $page = 1, $size = 10) {
+		$q = array(
+			'openid,nickname,score',
+			'xxt_enroll_record_score',
+			"enroll_key='$ek'",
+		);
+		$q2 = array(
+			'o' => 'create_at',
+			'r' => array('o' => ($page - 1) * $size, 'l' => $size),
+		);
+		$likers = $this->query_objs_ss($q, $q2);
+
+		return $likers;
+	}
+	/**
+	 * 返回登记人
+	 */
+	public function &enrollers($aid, $rid = '', $size = 1, $size = 30) {
+		$w = "aid='$aid' and state=1";
+		!empty($rid) && $w .= " and rid='$rid'";
+		$q = array(
+			'distinct openid,nickname',
+			'xxt_enroll_record',
+			$w,
+		);
+		$enrollers = $this->query_objs_ss($q);
+
+		$result = array(
+			'enrollers' => $enrollers,
+		);
+
+		return $result;
 	}
 	/**
 	 * 保存登记的数据
@@ -301,22 +395,26 @@ class record_model extends \TMS_MODEL {
 					if (false === $rst[0]) {
 						return $rst;
 					}
-
 					$vv[] = $rst[1];
 				}
 				$vv = implode(',', $vv);
 			} else if (is_array($v) && isset($v[0]->uniqueIdentifier)) {
 				/* 上传文件 */
-				$modelFs2 = \TMS_APP::M('fs/local', $runningMpid, '_user');
-				$modelFs = \TMS_APP::M('fs/local', $runningMpid, '_resumable');
+				$fsUser = \TMS_APP::M('fs/local', $runningMpid, '_user');
+				$fsResum = \TMS_APP::M('fs/local', $runningMpid, '_resumable');
+				$fsAli = \TMS_APP::M('fs/alioss', $runningMpid);
 				$vv = array();
-				$fsuser = \TMS_APP::model('fs/user', $runningMpid);
 				foreach ($v as $file) {
-					$fileUploaded = $modelFs->rootDir . '/' . $submitkey . '_' . $file->uniqueIdentifier;
-					!file_exists($modelFs2->rootDir . '/' . $submitkey) && mkdir($modelFs2->rootDir . '/' . $submitkey, 0777, true);
-					$fileUploaded2 = $modelFs2->rootDir . '/' . $submitkey . '/' . $file->name;
-					if (false === rename($fileUploaded, $fileUploaded2)) {
-						return array(false, '移动上传文件失败');
+					if (defined('SAE_TMP_PATH')) {
+						$dest = '/' . $aid . '/' . $submitkey . '_' . $file->name;
+						$fileUploaded2 = $fsAli->getBaseURL() . $dest;
+					} else {
+						$fileUploaded = $fsResum->rootDir . '/' . $submitkey . '_' . $file->uniqueIdentifier;
+						!file_exists($fsUser->rootDir . '/' . $submitkey) && mkdir($fsUser->rootDir . '/' . $submitkey, 0777, true);
+						$fileUploaded2 = $fsUser->rootDir . '/' . $submitkey . '/' . $file->name;
+						if (false === rename($fileUploaded, $fileUploaded2)) {
+							return array(false, '移动上传文件失败');
+						}
 					}
 					unset($file->uniqueIdentifier);
 					$file->url = $fileUploaded2;
@@ -324,10 +422,13 @@ class record_model extends \TMS_MODEL {
 				}
 				$vv = json_encode($vv);
 			} else {
-				/**
-				 * 文本和选择题
-				 */
-				$vv = is_string($v) ? $this->escape($v) : implode(',', array_keys(array_filter((array) $v, function ($i) {return $i;})));
+				if (is_string($v)) {
+					$vv = $this->escape($v);
+				} else if (is_object($v) || is_array($v)) {
+					$vv = implode(',', array_keys(array_filter((array) $v, function ($i) {return $i;})));
+				} else {
+					$vv = $v;
+				}
 			}
 			if (!empty($fields) && in_array($n, $fields)) {
 				$this->update(
@@ -386,21 +487,45 @@ class record_model extends \TMS_MODEL {
 		return $ek;
 	}
 	/**
-	 * 清除一条活动报名名单
+	 *
 	 */
-	public function remove($aid, $key) {
+	public function modify($ek, $data) {
+		$rst = $this->update(
+			'xxt_enroll_record',
+			$data,
+			"enroll_key='$ek'"
+		);
+		return $rst;
+	}
+	/**
+	 * 清除一条登记记录
+	 * @param string $aid
+	 * @param string $ek
+	 */
+	public function remove($aid, $ek) {
+		$rst = $this->update(
+			'xxt_enroll_record_data',
+			array('state' => 0),
+			"aid='$aid' and enroll_key='$ek'"
+		);
 		$rst = $this->update(
 			'xxt_enroll_record',
 			array('state' => 0),
-			"aid='$aid' and enroll_key='$key'"
+			"aid='$aid' and enroll_key='$ek'"
 		);
 
 		return $rst;
 	}
 	/**
-	 * 清除活动报名名单
+	 * 清除登记记录
+	 * @param string $aid
 	 */
 	public function clean($aid) {
+		$rst = $this->update(
+			'xxt_enroll_record_data',
+			array('state' => 0),
+			"aid='$aid'"
+		);
 		$rst = $this->update(
 			'xxt_enroll_record',
 			array('state' => 0),

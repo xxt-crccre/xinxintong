@@ -7,9 +7,12 @@ class catelog_model extends \TMS_MODEL {
 	/**
 	 * @param string $id
 	 */
-	public function &byId($id, $cascaded = "N") {
+	public function &byId($id, $options = array()) {
+		$cascaded = isset($options['cascaded']) ? $options['cascaded'] : 'N';
+		$fields = isset($options['fields']) ? $options['fields'] : '*';
+
 		$q = array(
-			'*',
+			$fields,
 			'xxt_merchant_catelog c',
 			"id=$id",
 		);
@@ -29,10 +32,13 @@ class catelog_model extends \TMS_MODEL {
 	 *
 	 * @param int $shopId
 	 */
-	public function &byShopId($shopId, $state = array()) {
+	public function &byShopId($shopId, $options = array()) {
+		$fields = isset($options['fields']) ? $options['fields'] : '*';
+		$state = isset($options['state']) ? $options['state'] : array();
+
 		$q = array(
-			'*',
-			'xxt_merchant_catelog c',
+			$fields,
+			'xxt_merchant_catelog',
 			"sid=$shopId",
 		);
 		isset($state['disabled']) && $q[2] .= " and disabled='" . $state['disabled'] . "'";
@@ -53,27 +59,6 @@ class catelog_model extends \TMS_MODEL {
 		return $catelogs;
 	}
 	/**
-	 *
-	 * @param int $productId
-	 */
-	public function &byProductId($productId) {
-		$q = array(
-			'*',
-			'xxt_merchant_catelog c',
-			"exists(select 1 from xxt_merchant_product p where p.id=$productId and p.cate_id=c.id)",
-		);
-
-		if ($catelog = $this->query_obj_ss($q)) {
-			$cascaded = $this->cascaded($catelog->id);
-			$catelog->properties = $cascaded->properties;
-			$catelog->propValues = isset($cascaded->propValues) ? $cascaded->propValues : array();
-			$catelog->orderProperties = isset($cascaded->orderProperties) ? $cascaded->orderProperties : array();
-			$catelog->feedbackProperties = isset($cascaded->feedbackProperties) ? $cascaded->feedbackProperties : array();
-		}
-
-		return $catelog;
-	}
-	/**
 	 * $id catelog's id
 	 */
 	public function &cascaded($id) {
@@ -84,7 +69,7 @@ class catelog_model extends \TMS_MODEL {
 		$q = array(
 			'*',
 			'xxt_merchant_catelog_property',
-			"cate_id=$id",
+			"cate_id=$id and disabled='N'",
 		);
 		$properties = $this->query_objs_ss($q);
 
@@ -107,6 +92,8 @@ class catelog_model extends \TMS_MODEL {
 			}
 
 			$cascaded->propValues = $propValues;
+		} else {
+			$cascaded->propValues = array();
 		}
 		/**
 		 * order properties
@@ -114,7 +101,7 @@ class catelog_model extends \TMS_MODEL {
 		$q = array(
 			'*',
 			'xxt_merchant_order_property',
-			"cate_id=$id",
+			"cate_id=$id and disabled='N'",
 		);
 		$orderProperties = $this->query_objs_ss($q);
 
@@ -162,9 +149,11 @@ class catelog_model extends \TMS_MODEL {
 	/**
 	 * @param int $skuId
 	 */
-	public function &skuById($skuId) {
+	public function &skuById($skuId, $options = array()) {
+		$fields = isset($options['fields']) ? $options['fields'] : 'id,sid,cate_id,name,can_autogen,autogen_rule,has_validity,require_pay,seq';
+
 		$q = array(
-			'*',
+			$fields,
 			'xxt_merchant_catelog_sku s',
 			"id=$skuId",
 		);
@@ -227,7 +216,10 @@ class catelog_model extends \TMS_MODEL {
 	 * @param int $skuId
 	 */
 	public function removeSku($skuId) {
-		$sku = $this->skuById($skuId);
+		$options = array(
+			'fields' => 'used',
+		);
+		$sku = $this->skuById($skuId, $options);
 		if ($sku->used === 'Y') {
 			$rst = $this->update('xxt_merchant_catelog_sku', array('disabled' => 'Y'), "id=$skuId");
 		} else {

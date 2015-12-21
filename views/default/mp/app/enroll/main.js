@@ -1,49 +1,108 @@
-xxtApp.controller('enrollCtrl', ['$rootScope', '$scope', 'http2', function ($rootScope, $scope, http2) {
-    $scope.page = { at: 1, size: 30 }
-    $rootScope.floatToolbar = { matterShop: true };
-    $scope.doSearch = function () {
-        var url = '/rest/mp/app/enroll/get?page=' + $scope.page.at + '&size=' + $scope.page.size + '&contain=total';
+xxtApp.controller('enrollCtrl', ['$scope', '$modal', 'http2', function($scope, $modal, http2) {
+    $scope.page = {
+        at: 1,
+        size: 30
+    }
+    $scope.doSearch = function() {
+        var url = '/rest/mp/app/enroll/list?page=' + $scope.page.at + '&size=' + $scope.page.size;
         $scope.fromParent && $scope.fromParent === 'Y' && (url += '&src=p');
-        http2.get(url, function (rsp) {
-            $scope.activities = rsp.data[0];
+        http2.get(url, function(rsp) {
+            $scope.apps = rsp.data[0];
             $scope.page.total = rsp.data[1];
         });
     };
-    $scope.open = function (aid) {
-        if (aid === undefined) {
-            http2.get('/rest/mp/app/enroll/create', function (rsp) {
+    $scope.create = function() {
+        $modal.open({
+            templateUrl: 'templatePicker.html',
+            size: 'lg',
+            backdrop: 'static',
+            windowClass: 'auto-height',
+            controller: ['$scope', '$modalInstance', function($scope2, $mi) {
+                $scope2.data = {};
+                $scope2.cancel = function() {
+                    $mi.dismiss();
+                };
+                $scope2.blank = function() {
+                    $mi.close();
+                };
+                $scope2.ok = function() {
+                    $mi.close($scope2.data);
+                };
+                $scope2.chooseScenario = function() {};
+                $scope2.chooseTemplate = function() {
+                    if (!$scope2.data.template) return;
+                    var url;
+                    url = '/rest/mp/app/enroll/template/config';
+                    url += '?scenario=' + $scope2.data.scenario.name;
+                    url += '&template=' + $scope2.data.template.name;
+                    http2.get(url, function(rsp) {
+                        var elSimulator, url;
+                        $scope2.data.simpleSchema = rsp.data.simpleSchema ? rsp.data.simpleSchema : '';
+                        $scope2.pages = rsp.data.pages;
+                        $scope2.data.selectedPage = $scope2.pages[0];
+                        elSimulator = document.querySelector('#simulator');
+                        url = 'http://' + location.host;
+                        url += '/rest/app/enroll/template';
+                        url += '?scenario=' + $scope2.data.scenario.name;
+                        url += '&template=' + $scope2.data.template.name;
+                        url += '&_=' + (new Date()).getTime();
+                        elSimulator.src = url;
+                        elSimulator.onload = function() {
+                            $scope.$apply(function() {
+                                $scope2.choosePage();
+                            });
+                        };
+                    });
+                };
+                $scope2.choosePage = function() {
+                    var elSimulator, page;
+                    elSimulator = document.querySelector('#simulator');
+                    config = {
+                        simpleSchema: $scope2.data.simpleSchema
+                    };
+                    page = $scope2.data.selectedPage.name;
+                    elSimulator.contentWindow.renew(page, config);
+                };
+                http2.get('/rest/mp/app/enroll/template/list', function(rsp) {
+                    $scope2.templates = rsp.data;
+                });
+            }]
+        }).result.then(function(data) {
+            var url, config;
+            url = '/rest/mp/app/enroll/create';
+            url += '?scenario=' + data.scenario.name;
+            url += '&template=' + data.template.name;
+            config = {};
+            if (data.simpleSchema && data.simpleSchema.length) {
+                config.simpleSchema = data.simpleSchema;
+            }
+            http2.post(url, config, function(rsp) {
                 location.href = '/rest/mp/app/enroll/detail?aid=' + rsp.data.id;
             });
-        } else
-            location.href = '/rest/mp/app/enroll/detail?aid=' + aid;
+        })
     };
-    $scope.removeAct = function (act, event) {
+    $scope.open = function(aid) {
+        location.href = '/rest/mp/app/enroll/detail?aid=' + aid;
+    };
+    $scope.remove = function(act, event) {
         event.preventDefault();
         event.stopPropagation();
-        http2.get('/rest/mp/app/enroll/remove?aid=' + act.id, function (rsp) {
-            var i = $scope.activities.indexOf(act);
-            $scope.activities.splice(i, 1);
+        http2.get('/rest/mp/app/enroll/remove?aid=' + act.id, function(rsp) {
+            var i = $scope.apps.indexOf(act);
+            $scope.apps.splice(i, 1);
         });
     };
-    $scope.copyAct = function (copied, event) {
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
+    $scope.copy = function(copied, event) {
+        event.preventDefault();
+        event.stopPropagation();
         var url = '/rest/mp/app/enroll/copy?';
         if (copied.id)
             url += 'aid=' + copied.id;
         else if (copied.shopid)
             url += 'shopid=' + copied.shopid;
-        http2.get(url, function (rsp) {
+        http2.get(url, function(rsp) {
             location.href = '/rest/mp/app/enroll/detail?aid=' + rsp.data.id;
         });
     };
-    $scope.$on('xxt.float-toolbar.shop.open', function (event) {
-        $scope.$emit('mattershop.open', { type: 'enroll' });
-    });
-    $scope.$on('xxt.float-toolbar.shop.copy', function (event, item) {
-        $scope.copyAct({ shopid: item.id });
-    });
     $scope.doSearch();
 }]);

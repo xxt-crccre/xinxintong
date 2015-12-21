@@ -11,24 +11,55 @@ class enroll_model extends \matter\enroll_model {
 	 * $aid string
 	 * $cascaded array []
 	 */
-	public function &byId($aid, $fields = '*', $cascaded = 'Y') {
+	public function &byId($aid, $options = array()) {
+		$fields = isset($options['fields']) ? $options['fields'] : '*';
+		$cascaded = isset($options['cascaded']) ? $options['cascaded'] : 'Y';
 		$q = array(
 			$fields,
 			'xxt_enroll',
 			"id='$aid'",
 		);
-		if ($e = $this->query_obj_ss($q)) {
-			$e->entry_rule = json_decode($e->entry_rule);
-			/**
-			 * 页面内容
-			 */
+		if ($app = $this->query_obj_ss($q)) {
+			if (isset($app->entry_rule)) {
+				$app->entry_rule = json_decode($app->entry_rule);
+			}
+
 			if ($cascaded === 'Y') {
 				$modelPage = \TMS_APP::M('app\enroll\page');
-				$e->pages = $modelPage->byEnroll($aid);
+				$app->pages = $modelPage->byApp($aid);
 			}
 		}
 
-		return $e;
+		return $app;
+	}
+	/**
+	 * 更新登记活动标签
+	 */
+	public function updateTags($aid, $tags) {
+		if (empty($tags)) {
+			return false;
+		}
+
+		$options = array('fields' => 'tags', 'cascaded' => 'N');
+		$app = $this->byId($aid, $options);
+		if (empty($app->tags)) {
+			$this->update('xxt_enroll', array('tags' => $tags), "id='$aid'");
+		} else {
+			$existent = explode(',', $app->tags);
+			$checked = explode(',', $tags);
+			$updated = array();
+			foreach ($checked as $c) {
+				if (!in_array($c, $existent)) {
+					$updated[] = $c;
+				}
+			}
+			if (count($updated)) {
+				$updated = array_merge($existent, $updated);
+				$updated = implode(',', $updated);
+				$this->update('xxt_enroll', array('tags' => $updated), "id='$aid'");
+			}
+		}
+		return true;
 	}
 	/**
 	 * 活动登记（不包括登记数据）
@@ -39,14 +70,14 @@ class enroll_model extends \matter\enroll_model {
 	 * $vid
 	 * $mid
 	 */
-	public function enroll($mpid, $act, $openid, $vid = '', $mid = '') {
+	public function enroll($mpid, $act, $openid, $vid = '', $mid = '', $enroll_at = null) {
 		$fan = \TMS_APP::M('user/fans')->byOpenid($mpid, $openid);
 		$modelRec = \TMS_APP::M('app\enroll\record');
 		$ek = $modelRec->genKey($mpid, $act->id);
 		$i = array(
 			'aid' => $act->id,
 			'mpid' => $mpid,
-			'enroll_at' => time(),
+			'enroll_at' => $enroll_at === null ? time() : $enroll_at,
 			'enroll_key' => $ek,
 			'openid' => $openid,
 			'nickname' => !empty($fan) ? $fan->nickname : '',
@@ -71,45 +102,54 @@ class enroll_model extends \matter\enroll_model {
 		if (empty($mpid) || empty($aid) || empty($openid)) {
 			return false;
 		}
-
 		$q = array(
 			'count(*)',
 			'xxt_enroll_record',
-			"state=1 and mpid='$mpid' and aid='$aid' and openid='$openid'",
+			"state=1 and enroll_at>0 and mpid='$mpid' and aid='$aid' and openid='$openid'",
 		);
 		$modelRun = \TMS_APP::M('app\enroll\round');
 		if ($activeRound = $modelRun->getActive($mpid, $aid)) {
 			$q[2] .= " and rid='$activeRound->rid'";
 		}
-
 		$rst = (int) $this->query_val_ss($q);
 
 		return $rst > 0;
 	}
 	/**
-	 * 活动签到
+	 * 登记活动签到
 	 *
 	 * 如果用户已经做过活动登记，那么设置签到时间
 	 * 如果用户没有做个活动登记，那么要先产生一条登记记录，并记录签到时间
 	 */
 	public function signin($mpid, $aid, $openid) {
-		$modelRec = $this->model('app\enroll\record');
+		$modelRec = \TMS_APP::M('app\enroll\record');
 		if ($ek = $modelRec->getLastKey($mpid, $aid, $openid)) {
-			$rst = $this->update(
-				'xxt_enroll_record',
-				array('signin_at' => time()),
-				"mpid='$mpid' and aid='$aid' and enroll_key='$ek'"
-			);
-			return true;
+			$enrolled = true;
 		} else {
-			$ek = $this->enroll($mpid, (object) array('id' => $aid), $openid);
-			$rst = $this->update(
-				'xxt_enroll_record',
-				array('signin_at' => time()),
-				"mpid='$mpid' and aid='$aid' and enroll_key='$ek'"
-			);
-			return false;
+			$enrolled = false;
+			$act = new \stdClass;
+			$act->id = $aid;
+			$ek = $this->enroll($mpid, $act, $openid, '', '', 0);
 		}
+		/*更新状态*/
+		$signinAt = time();
+		$sql = "update xxt_enroll_record set signin_at=$signinAt,signin_num=signin_num+1";
+		$sql .= " where mpid='$mpid' and aid='$aid' and enroll_key='$ek'";
+		$rst = $this->update($sql);
+		/*记录日志*/
+		$this->insert(
+			'xxt_enroll_signin_log',
+			array(
+				'mpid' => $mpid,
+				'aid' => $aid,
+				'enroll_key' => $ek,
+				'openid' => $openid,
+				'signin_at' => $signinAt,
+			),
+			false
+		);
+
+		return $enrolled;
 	}
 	/**
 	 * 活动报名名单
@@ -197,15 +237,14 @@ class enroll_model extends \matter\enroll_model {
 	 *
 	 */
 	public function getStat($aid) {
-		/**
-		 * 获得活动的定义
-		 */
-		$q = array(
-			'p.html form_html',
-			'xxt_enroll a,xxt_code_page p',
-			"a.id='$aid' and a.form_code_id=p.id",
-		);
-		$act = $this->query_obj_ss($q);
+		$modelPage = \TMS_APP::M('app\enroll\page');
+		$pages = $modelPage->byApp($aid);
+		foreach ($pages as $page) {
+			if ($page->type === 'I') {
+				$html = $page->html;
+				break;
+			}
+		}
 		// 记录返回的结果
 		$defsAndCnt = array();
 		/**
@@ -215,9 +254,9 @@ class enroll_model extends \matter\enroll_model {
 		 * 定义数据项都是input，所以首先应该将页面中所有input元素提取出来
 		 * 每一个元素中都有ng-model和title属相，ng-model包含了id，title是名称
 		 */
-		if (!empty($act->form_html)) {
+		if (!empty($html)) {
 			$wraps = array();
-			if (preg_match_all("/<div.+?wrap=.+?>.+?<\/div/i", $act->form_html, $wraps)) {
+			if (preg_match_all('/<(div|li|option).+?wrap=.+?>.*?<\/(div|li|option)/i', $html, $wraps)) {
 				$wraps = $wraps[0];
 				foreach ($wraps as $wrap) {
 					$def = array();
@@ -229,12 +268,10 @@ class enroll_model extends \matter\enroll_model {
 					if (!preg_match('/<input.+?>/', $wrap, $inp)) {
 						continue;
 					}
-
 					$inp = $inp[0];
 					if (preg_match('/title="(.*?)"/', $inp, $title)) {
 						$title = $title[1];
 					}
-
 					if (preg_match('/type="radio"/', $inp)) {
 						/**
 						 * for radio group.
@@ -242,36 +279,25 @@ class enroll_model extends \matter\enroll_model {
 						if (preg_match('/ng-model="data\.(.+?)"/', $inp, $ngmodel)) {
 							$id = $ngmodel[1];
 						}
-
-						$existing = false;
-						foreach ($defsAndCnt as &$d) {
-							if ($existing = ($d['id'] === $id)) {
-								break;
-							}
+						if (!isset($defsAndCnt[$id])) {
+							$defsAndCnt[$id] = array('title' => $title, 'id' => $id, 'ops' => array());
 						}
-
-						if (!$existing) {
-							$defsAndCnt[] = array('title' => $title, 'id' => $id, 'ops' => array());
-							$d = &$defsAndCnt[count($defsAndCnt) - 1];
-						}
+						$d = &$defsAndCnt[$id];
 						if (preg_match('/value="(.+?)"/', $wrap, $opval)) {
 							$op['v'] = $opval[1];
 						}
-
 						if (preg_match('/data-label="(.+?)"/', $wrap, $optit)) {
 							$op['l'] = $optit[1];
 						}
-
 						/**
 						 * 获取数据
 						 */
 						$q = array(
 							'count(*)',
 							'xxt_enroll_record_data',
-							"name='$id' and value='{$op['v']}'",
+							"aid='$aid' and state=1 and name='$id' and value='{$op['v']}'",
 						);
 						$op['c'] = $this->query_val_ss($q);
-
 						$d['ops'][] = $op;
 					} else if (preg_match('/type="checkbox"/', $wrap)) {
 						/**
@@ -281,29 +307,21 @@ class enroll_model extends \matter\enroll_model {
 							$id = $ngmodel[1];
 							$opval = $ngmodel[2];
 						}
-						$existing = false;
-						foreach ($defsAndCnt as &$d) {
-							if ($existing = ($d['id'] === $id)) {
-								break;
-							}
+						if (!isset($defsAndCnt[$id])) {
+							$defsAndCnt[$id] = array('title' => $title, 'id' => $id, 'ops' => array());
 						}
-
-						if (!$existing) {
-							$defsAndCnt[] = array('title' => $title, 'id' => $id, 'ops' => array());
-							$d = &$defsAndCnt[count($defsAndCnt) - 1];
-						}
+						$d = &$defsAndCnt[$id];
 						$op['v'] = $opval;
 						if (preg_match('/data-label="(.+?)"/', $wrap, $optit)) {
 							$op['l'] = $optit[1];
 						}
-
 						/**
 						 * 获取数据
 						 */
 						$q = array(
 							'count(*)',
 							'xxt_enroll_record_data',
-							"name='$id' and FIND_IN_SET('$opval', value)",
+							"aid='$aid' and state=1 and name='$id' and FIND_IN_SET('$opval', value)",
 						);
 						$op['c'] = $this->query_val_ss($q);
 						//

@@ -41,16 +41,29 @@
             });
         };
         $scope.removeSku = function(index, sku) {
-            http2.get('/rest/mp/app/merchant/product/skuRemove?sku=' + sku.id, function(rsp) {
-                $scope.skus.splice(index, 1);
-            });
+            if (window.confirm("确定删除？")) {
+                http2.get('/rest/mp/app/merchant/product/skuRemove?sku=' + sku.id, function(rsp) {
+                    $scope.skus.splice(index, 1);
+                });
+            }
         };
         $scope.$on('xxt.tms-datepicker.change', function(event, data) {
             data.obj[data.state] = data.value;
             $scope.updateSku(data.obj, data.state);
         });
         http2.get('/rest/mp/app/merchant/product/skuList?product=' + $scope.productId, function(rsp) {
-            $scope.skus = rsp.data;
+            var i, j, cateSkus, cateSku, sku, skus;
+            cateSkus = rsp.data;
+            skus = [];
+            for (i in cateSkus) {
+                cateSku = cateSkus[i];
+                for (j in cateSku.skus) {
+                    sku = cateSku.skus[j];
+                    sku.cateSku = cateSku;
+                    skus.push(sku);
+                }
+            }
+            $scope.skus = skus;
         });
         $scope.$watch('editing', function(nv) {
             if (nv) {

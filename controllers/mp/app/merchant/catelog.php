@@ -21,7 +21,19 @@ class catelog extends \mp\app\app_base {
 	/**
 	 *
 	 */
+	public function page_action() {
+		$this->view_action('/mp/app/merchant/catelog/base');
+	}
+	/**
+	 *
+	 */
 	public function product_action() {
+		$this->view_action('/mp/app/merchant/catelog/base');
+	}
+	/**
+	 *
+	 */
+	public function tmplmsg_action() {
 		$this->view_action('/mp/app/merchant/catelog/base');
 	}
 	/**
@@ -31,10 +43,17 @@ class catelog extends \mp\app\app_base {
 		$this->view_action('/mp/app/merchant/catelog/base');
 	}
 	/**
-	 * @param string $catelog
+	 *
+	 * @param int $catelog
 	 */
 	public function get_action($catelog, $cascaded = 'Y') {
-		$catelog = $this->model('app\merchant\catelog')->byId($catelog, $cascaded);
+		$options = array(
+			'fields' => '*',
+			'cascaded' => $cascaded,
+		);
+		if ($catelog = $this->model('app\merchant\catelog')->byId($catelog, $options)) {
+			$catelog->shop = $this->model('app\merchant\shop')->byId($catelog->sid);
+		}
 
 		return new \ResponseData($catelog);
 	}
@@ -74,9 +93,10 @@ class catelog extends \mp\app\app_base {
 			'name' => '新分类',
 		);
 		$cate['id'] = $this->model()->insert('xxt_merchant_catelog', $cate, true);
-		/*分类的sku*/
+		/*每个分类至少有一个缺省的sku*/
 		$sku = new \stdClass;
 		$sku->name = '新库存定义';
+		$sku->autogen_rule = '{}';
 		$sku = $this->model('app\merchant\catelog')->defineSku($this->mpid, $shop, $cate['id'], $sku);
 
 		return new \ResponseData($cate);
@@ -89,6 +109,19 @@ class catelog extends \mp\app\app_base {
 	public function update_action($catelog) {
 		$nv = $this->getPostJson();
 		$rst = $this->_update($catelog, $nv);
+
+		if (isset($nv->has_validity) && $nv->has_validity === 'Y') {
+			$this->model()->update(
+				'xxt_merchant_catelog_sku',
+				array('has_validity' => 'Y'),
+				"cate_id=$catelog"
+			);
+			$this->model()->update(
+				'xxt_merchant_product_sku',
+				array('has_validity' => 'Y'),
+				"cate_id=$catelog"
+			);
+		}
 
 		return new \ResponseData($rst);
 	}
@@ -294,19 +327,20 @@ class catelog extends \mp\app\app_base {
 		return new \ResponseData($rst);
 	}
 	/**
+	 * 获得指定分类下sku定义
 	 *
-	 */
-	public function skuGet_action($sku) {
-		$sku = new \stdClass;
-		return new \ResponseData($sku);
-	}
-	/**
+	 * @param int $shop
+	 * @param int $catelog
 	 *
+	 * @return sku列表
 	 */
 	public function skuList_action($shop, $catelog) {
 		$modelCate = $this->model('app\merchant\catelog');
 
 		$skus = $modelCate->skus($catelog);
+		foreach ($skus as &$sku) {
+			$sku->autogen_rule = json_decode($sku->autogen_rule);
+		}
 
 		return new \ResponseData($skus);
 	}
@@ -318,6 +352,7 @@ class catelog extends \mp\app\app_base {
 		$data = new \stdClass;
 		$data->name = '新库存定义';
 		$data->has_validity = 'N';
+		$data->autogen_rule = '{}';
 
 		$sku = $this->model('app\merchant\catelog')->defineSku($this->mpid, $shop, $catelog, $data);
 
@@ -330,10 +365,21 @@ class catelog extends \mp\app\app_base {
 		$posted = $this->getPostJson();
 
 		$data = $posted;
+		if (isset($data->autogen_rule)) {
+			$data->autogen_rule = json_encode($data->autogen_rule);
+		}
+
 		$data->modify_at = time();
 		$data->reviser = \TMS_CLIENT::get_client_uid();
 
 		$rst = $this->model()->update('xxt_merchant_catelog_sku', (array) $data, "id=$sku");
+		if ($rst && isset($data->has_validity)) {
+			$this->model()->update(
+				'xxt_merchant_product_sku',
+				array('has_validity' => $data->has_validity),
+				"cate_sku_id=$sku"
+			);
+		}
 
 		return new \ResponseData($rst);
 	}
@@ -348,9 +394,17 @@ class catelog extends \mp\app\app_base {
 		return new \ResponseData($rst);
 	}
 	/**
+	 * @param int $catelog
+	 * @param string $type
+	 */
+	public function pageCreate_action($catelog, $type) {
+		return new \ResponseData($page);
+	}
+	/**
 	 * 更新分类的基础信息
 	 *
 	 * @param int $catelog
+	 * @param object $data
 	 */
 	private function _update($catelogId, $data) {
 		$reviser = \TMS_CLIENT::get_client_uid();

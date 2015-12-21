@@ -1,84 +1,70 @@
-app.register.controller('merchantCtrl', ['$scope', '$http', 'Product', 'Sku', 'Order', function($scope, $http, Product, Sku, Order) {
-	var facProduct, facSku, facOrder;
-	facProduct = new Product($scope.$parent.mpid, $scope.$parent.shopId);
-	facOrder = new Order($scope.$parent.mpid, $scope.$parent.shopId);
-	var productGet = function(id) {
-		facProduct.get(id).then(function(product) {
-			var propValue;
-			$scope.product = product;
-			$scope.catelog = product.catelog;
-			$scope.propValues = product.propValue2;
-			facSku = new Sku($scope.$parent.mpid, $scope.$parent.shopId, id);
-			facSku.get().then(function(skus) {
-				$scope.skus = skus;
-				if ($scope.$parent.orderId) {
-					angular.forEach($scope.skus, function(v) {
-						if (typeof $scope.orderInfo.skus[v.id] === 'object') {
-							v.selected = true;
-						}
-					});
-				} else if (skus.length) {
-					$scope.chooseSku(skus[0]);
-				}
-			})
-		});
-	};
-	$scope.chooseSku = function(sku) {
-		sku.selected = !sku.selected;
-		if (sku.selected) {
-			$scope.orderInfo.skus[sku.id] = {
-				count: 1
-			};
+app.register.controller('orderCtrl', ['$scope', '$http', 'Sku', 'Order', function($scope, $http, Sku, Order) {
+	var facSku, facOrder;
+	var summarySku = function(catelog, product, cateSku, sku) {
+		if (sku.summary && sku.summary.length) {
+			return sku.summary;
+		} else if (catelog.pattern === 'place' && cateSku.has_validity === 'Y') {
+			var begin, end, hour, min;
+			begin = new Date();
+			begin.setTime(sku.validity_begin_at * 1000);
+			hour = ((begin.getHours() + 100) + '').substr(1);
+			min = ((begin.getMinutes() + 100) + '').substr(1);
+			begin = hour + ':' + min;
+			end = new Date();
+			end.setTime(sku.validity_end_at * 1000);
+			hour = ((end.getHours() + 100) + '').substr(1);
+			min = ((end.getMinutes() + 100) + '').substr(1);
+			end = hour + ':' + min;
+
+			return begin + '-' + end;
 		} else {
-			delete $scope.orderInfo.skus[sku.id];
+			return cateSku.name;
 		}
 	};
-	$scope.create = function() {
-		if (!$scope.orderInfo.receiver_name) {
-			alert('请填写联系人姓名');
-			return;
+	var isAvailable = function(sku) {
+		if (sku.unlimited_quantity === 'Y') {
+			return true;
 		}
-		if (!$scope.orderInfo.receiver_mobile) {
-			alert('请填写联系人电话');
-			return;
+		if (sku.quantity > 0) {
+			return true;
 		}
-		facOrder.create($scope.orderInfo).then(function(orderId) {
-			var requirePay = false;
-			angular.forEach($scope.skus, function(v) {
-				if (typeof $scope.orderInfo.skus[v.id] === 'object' && v.cateSku.require_pay === 'Y') {
-					requirePay = true;
-					return false;
+		return false;
+	};
+	var setSkus = function(catelogs) {
+		var i, j, k, l, catelog, product, cateSku, sku;
+		for (i in catelogs) {
+			catelog = catelogs[i];
+			for (j in catelog.products) {
+				product = catelog.products[j];
+				for (k in product.cateSkus) {
+					cateSku = product.cateSkus[k];
+					for (l in cateSku.skus) {
+						sku = cateSku.skus[l];
+						sku._summary = summarySku(catelog, product, cateSku, sku);
+						sku._available = isAvailable(sku);
+						sku.cateSku = cateSku;
+						$scope.skus.push(sku);
+						$scope.orderInfo.skus[sku.id] = {
+							count: 1
+						};
+						$scope.orderInfo.counter++;
+					}
 				}
-			});
-			if (requirePay) {
-				location.href = '/rest/app/merchant/pay?mpid=' + $scope.$parent.mpid + '&shop=' + $scope.$parent.shopId + '&order=' + orderId;
-			} else {
-				location.href = '/rest/app/merchant/payok?mpid=' + $scope.$parent.mpid + '&shop=' + $scope.$parent.shopId + '&order=' + orderId;
 			}
-		});
+		}
 	};
-	$scope.orderInfo = {
-		skus: {}
-	};
-	if ($scope.$parent.orderId) {
-		$scope.orderInfo = {
-			skus: {}
-		};
-		facOrder.get($scope.$parent.orderId).then(function(order) {
-			var feedback;
-			feedback = order.feedback;
-			$scope.orderInfo.feedback = (feedback && feedback.length) ? JSON.parse(feedback) : {};
-			$scope.orderInfo.extPropValues = JSON.parse(order.ext_prop_value);
-			$scope.orderInfo.receiver_name = order.receiver_name;
-			$scope.orderInfo.receiver_mobile = order.receiver_mobile;
-			angular.forEach(order.skus, function(v) {
-				$scope.orderInfo.skus[v.sku_id] = {
-					count: v.sku_count
-				};
-			});
-			productGet(order.product_id);
-		});
-	} else if ($scope.$parent.productId) {
-		productGet($scope.$parent.productId);
-	}
+	facOrder = new Order($scope.$parent.mpid, $scope.$parent.shopId);
+	facOrder.get($scope.$parent.orderId).then(function(data) {
+		var order;
+		order = data.order;
+		$scope.order = order;
+		$scope.orderInfo.status = order.order_status;
+		$scope.orderInfo.extPropValues = order.extPropValues;
+		$scope.orderInfo.feedback = order.feedback;
+		$scope.orderInfo.receiver_name = order.receiver_name;
+		$scope.orderInfo.receiver_mobile = order.receiver_mobile;
+		$scope.orderInfo.receiver_email = order.receiver_email;
+		$scope.catelogs = data.catelogs;
+		setSkus(data.catelogs);
+	});
 }]);

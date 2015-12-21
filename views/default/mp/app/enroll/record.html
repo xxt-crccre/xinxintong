@@ -22,7 +22,7 @@
         <div class='form-group'>
             <combox title='标签' evt-prefix='search-tag' readonly='true' existing='page.tags' options='editing.tags'></combox>
         </div>
-        <div class='form-group pull-right' style='width:120px'>
+        <div class='form-group pull-right' style='width:90px'>
             <div class='input-group'>
                 <input class='form-control' ng-model='page.size' title='每页条数' placeholder='每页条数'>
                 <span class='input-group-btn'>
@@ -35,6 +35,15 @@
         <div class='form-group'>
             <select class='form-control' title="排序条件" ng-model='page.orderBy' ng-options='o.v as o.n for o in orderBys' ng-change='doSearch(1)'></select>
         </div>
+        <div class='form-group' ng-if="editing.can_signin==='Y'" style='width:180px'>
+            <tms-datepicker tms-title='签到范围开始日期' tms-date='signinStartAt' tms-state='signinStartAt'></tms-datepicker>
+        </div>
+        <div class='form-group' ng-if="editing.can_signin==='Y'" style='width:180px'>
+            <tms-datepicker tms-title='签到范围结束日期' tms-date='signinEndAt' tms-state='signinEndAt'></tms-datepicker>
+        </div>
+        <div class='form-group' style='display:none'>
+            <button class='btn btn-default' ng-click='setFilterByData()'>根据数据筛选</button>
+        </div>
     </div>
     <div id='records'>
         <table class='table table-bordered'>
@@ -45,8 +54,9 @@
                     </th>
                     <th style='width:100px'>登记时间</th>
                     <th style='width:100px'>昵称</th>
-                    <th class='custom-col' ng-repeat="c in cols" title="{{c.ops}}">{{c.title}}</th>
-                    <th style='width:100px' ng-if="editing.can_signin==='Y'">签到时间</th>
+                    <th class='custom-col' ng-repeat="c in schema" title="{{c.ops}}">{{c.title}}</th>
+                    <th style='width:100px' ng-if="editing.can_signin==='Y'">最近签到时间</th>
+                    <th style='width:80px' ng-if="editing.can_signin==='Y'">签到次数</th>
                     <th style='width:140px'>标签</th>
                     <th style='width:60px' ng-if="editing.can_invite==='Y'">邀请</th>
                     <th style='width:60px' ng-if="editing.can_like_record==='Y'">点赞</th>
@@ -63,7 +73,7 @@
                     <td>
                         <a href='javascript:void(0)' xxt-fid='{{r.fid}}' ng-click='viewUser(r)'>{{r.nickname}}</a>
                     </td>
-                    <td ng-repeat="c in cols">
+                    <td ng-repeat="c in schema">
                         <span ng-if="c.id.indexOf('member')===0">{{memberAttr(r.data, c.id)}}</span>
                         <span ng-if="c.type!=='img'&&c.type!=='file'">{{value2Label(r.data[c.id], c.id)}}</span>
                         <span ng-if="c.type==='img'" ng-init="imgs=r.data[c.id].split(',')">
@@ -73,7 +83,8 @@
                             <span ng-repeat='file in files'><a href='{{file.url}}' target="_blank">{{file.name}}</a></span>
                         </span>
                     </td>
-                    <td ng-if="editing.can_signin==='Y'">{{r.signin_at>0 ? ((r.signin_at*1000)|date:'yyyy-MM-dd HH:mm') : ''}}</td>
+                    <td ng-if="editing.can_signin==='Y'">{{r.signin_at>0 ? ((r.signin_at*1000)|date:'MM-dd HH:mm') : ''}}</td>
+                    <td ng-if="editing.can_signin==='Y'">{{r.signinLogs.length}}</td>
                     <td>{{r.tags}}</td>
                     <td ng-if="editing.can_invite==='Y'">{{r.follower_num}}</td>
                     <td ng-if="editing.can_like_record==='Y'">{{r.score}}</td>
@@ -97,15 +108,12 @@
             <button type="button" class="btn btn-default">添加用户记录</button>
             <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true"
             aria-expanded="false">
-                <span class="caret"></span>
-                <span class="sr-only">Toggle Dropdown</span>
+            <span class="caret"></span>
+            <span class="sr-only">Toggle Dropdown</span>
             </button>
             <ul class="dropdown-menu">
                 <li>
                     <a href="javascript:void(0)" ng-click='importUser()'>认证用户</a>
-                </li>
-                <li>
-                    <a href="javascript:void(0)" ng-click='importApp()'>其他活动</a>
                 </li>
                 <li>
                     <a href="javascript:void(0)" ng-click='addRecord()'>手工添加</a>
@@ -118,6 +126,30 @@
         boundary-links="true" total-items="page.total" max-size="7" items-per-page="page.size" rotate="false" ng-model="page.at"
         previous-text="&lsaquo;" next-text="&rsaquo;" first-text="&laquo;" last-text="&raquo;" ng-change="doSearch()"></pagination>
     </div>
+    <script type="text/ng-template" id="recordFilter.html">
+        <div class="modal-header">
+            <button class="close" type="button" ng-click="cancel()">×</button>
+            <h5 class="modal-title">筛选条件</h5>
+        </div>
+        <div class="modal-body">
+            <form class="form-horizontal record-editor">
+                <div class="form-group" ng-repeat="def in schema" ng-if="def.id.indexOf('member')!==0">
+                    <label class="col-md-3 control-label">{{def.title}}</label>
+                    <div class="col-md-9" ng-if="def.type!=='single'&&def.type!=='multiple'">
+                        <input type='text' class='form-control' ng-model="filter[def.id]">
+                    </div>
+                    <div class="col-md-9" ng-if="def.type==='single'">
+                        <select class='form-control' ng-model="filter[def.id]" ng-options="op.v as op.label for op in def.ops">
+                            <option></option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" ng-click="ok()">确定</button>
+        </div>
+    </script>
     <script type="text/ng-template" id="editor.html">
         <div class="modal-header">
             <button class="close" type="button" ng-click="cancel()">×</button>
@@ -128,19 +160,22 @@
                 <div class="form-group" ng-if='record.enroll_at'>
                     <label class="col-md-2 control-label">登记时间</label>
                     <div class="col-md-10">
-                        <p class="form-control-static">{{record.enroll_at*1000|date:'yyyy-MM-dd hh:mm'}}</p>
+                        <p class="form-control-static">{{record.enroll_at*1000|date:'yy-MM-dd hh:mm'}}</p>
                     </div>
                 </div>
-                <div class="form-group" ng-repeat="c in cols" ng-if="c.id.indexOf('member')!==0">
+                <div class="form-group" ng-repeat="c in schema" ng-if="c.id.indexOf('member')!==0">
                     <label class="col-md-2 control-label">{{c.title}}</label>
                     <div class="col-md-10">
                         <input type='text' class='form-control' ng-if="c.type!=='img'&&c.type!=='file'" ng-model="record.data[c.id]">
                         <span ng-if="c.type==='img'" ng-init="imgs=record.data[c.id].split(',')">
                             <img ng-repeat="img in imgs" ng-src='{{img}}' style="width:100%"/>
                         </span>
-                        <span ng-if="c.type==='file'" ng-init="files=json2Obj(record.data[c.id])">
-                            <span ng-repeat="file in files">
-                                <video ng-if="file.type.indexOf('video')===0" style="width:100%;" controls="controls"><source ng-src="{{file.url}}" type="{{file.type}}" /></video>
+                        <span ng-if="c.type==='file'">
+                            <span ng-repeat="file in record.data[c.id]">
+                                <span ng-bind="file.url"></span>
+                                <video ng-if="file.type.indexOf('video')===0" style="width:100%;" controls="controls">
+                                    <source src="{{file.url}}" type="{{file.type}}"/>
+                                </video>
                                 <img ng-if="file.type.indexOf('image')===0" ng-src='{{file.url}}' style="width:100%"/>
                             </span>
                         </span>
@@ -149,7 +184,9 @@
                 <div class="form-group" ng-if="enroll.can_signin==='Y'&&record.enroll_at">
                     <label class="col-md-2 control-label">签到时间</label>
                     <div class="col-md-10">
-                        <p class="form-control-static" ng-if='record.signin_at>0'>{{record.signin_at*1000|date:'yyyy-MM-dd hh:mm'}}</p>
+                        <ul class='list-group' style='margin-bottom:0'>
+                            <li class='list-group-item' ng-repeat="l in record.signinLogs">{{l.signin_at*1000|date:'yy-MM-dd hh:mm'}}</li>
+                        </ul>
                         <button class="btn btn-primary" ng-if='record.signin_at==0' ng-click="signin()">签到</button>
                     </div>
                 </div>
@@ -157,12 +194,6 @@
                     <label class="col-md-2 control-label">活动标签</label>
                     <div class="col-md-10">
                         <combox evt-prefix='tag' existing='record.aTags' options='aTags'></combox>
-                    </div>
-                </div>
-                <div class="form-group" style='display:none'>
-                    <label class="col-md-2 control-label">备注</label>
-                    <div class="col-md-10">
-                        <textarea class='form-control' ng-model='record.comment'></textarea>
                     </div>
                 </div>
             </form>
@@ -174,58 +205,13 @@
     <script type="text/ng-template" id="userPicker.html">
         <div class="modal-header">
             <button class="close" type="button" ng-click="cancel()">×</button>
-            <h4 class="modal-title">选择认证用户</h5>
+            <h5 class="modal-title">选择认证用户</h5>
         </div>
         <div class="modal-body">
             <userpicker user-set='userSet' user-config='userConfig'></userpicker>
         </div>
         <div class="modal-footer">
             <button class="btn btn-primary" ng-click="ok()">确定</button>
-        </div>
-    </script>
-    <script type="text/ng-template" id="importApp.html">
-        <div class="modal-header">
-            <button class="close" type="button" ng-click="cancel()">×</button>
-            <h5 class="modal-title">导入用户</h5>
-        </div>
-        <div class="modal-body clearfix">
-            <div class='col-md-6'>
-                <ul class='list-group'>
-                    <li class='list-group-item' ng-repeat='a in activities'>
-                    <div class='radio' style='margin:0'>
-                        <label><input type='radio' name='act' ng-click='changeAct(a)'>{{a.title}}</label>
-                    </div>
-                    </li>
-                </ul>
-            </div>
-            <div class='col-md-6'>
-                <ul class='list-group'>
-                    <li class='list-group-item' ng-repeat='w in walls'>
-                    <div class='radio' style='margin:0'>
-                        <label><input type='radio' name='wall' ng-click='changeWall(w)'>{{w.title}}</label>
-                    </div>
-                    </li>
-                </ul>
-                <div class='form-inline'>
-                    <div class="radio">
-                        <label><input type='radio' value='online' disabled ng-model='param.wallUserState'> 在线用户</label>
-                    </div>
-                    <div class="radio">
-                        <label><input type='radio' value='active' disabled ng-model='param.wallUserState'> 已发言用户</label>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <div class='form-inline'>
-                <div class="radio">
-                    <label><input type='radio' value='inter' disabled ng-model='param.alg'> 交集</label>
-                </div>
-                <div class="radio">
-                    <label><input type='radio' value='union' disabled ng-model='param.alg'> 并集</label>
-                </div>
-                <button class="btn btn-primary" ng-click="ok()">确定</button>
-            </div>
         </div>
     </script>
 </div>

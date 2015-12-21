@@ -26,7 +26,7 @@
             <li><a href='/rest/user/logout' target='_self'>退出</a></li>
         </ul>
         </nav>
-        <div class='container'>
+        <div class='container-fluid'>
             <div class='row'>
                 <div class='col-md-2'>
                     <?php $c = TPL::val('layout-left'); $c && TPL::output($c);?>
@@ -36,16 +36,12 @@
                 </div>
             </div>
         </div>
-        <div id='float-toolbar' ng-if='floatToolbar'>
-            <a class='btn btn-default action' title='放入展示架' matter-shop ng-click='openShop()' ng-if='floatToolbar.matterShop'>
-                <span class='glyphicon glyphicon-share'></span>
-            </a>
-        </div>
         <script src="/static/js/jquery.min.js"></script>
         <script src="/static/js/jquery-ui.min.js"></script>
         <script src="/static/js/bootstrap.min.js"></script>
         <script src="/static/js/angular.min.js"></script>
         <script src="/static/js/angular-route.min.js"></script>
+        <script src="/static/js/angular-sanitize.min.js"></script>
         <script src="/static/js/ui-bootstrap.min.js"></script>
         <script src="/static/js/ui-bootstrap-tpls.min.js"></script>
         <script src="/static/js/ui-tms.js?_=1"></script>

@@ -13,6 +13,82 @@ class lottery extends \mp\app\app_base {
 		$this->view_action('/mp/app/enroll/detail');
 	}
 	/**
+	 * 创建抽奖页面
+	 *
+	 * @param string $aid
+	 * @param string $type
+	 */
+	public function pageCreate_action($aid, $type = 'carousel') {
+		$uid = \TMS_CLIENT::get_client_uid();
+		$modelCode = $this->model('code/page');
+		$code = $modelCode->create($uid);
+
+		$this->model()->update('xxt_enroll', array('lottery_page_id' => $code->id), "id='$aid'");
+
+		$module = dirname(__FILE__) . '/module/lottery/' . $type;
+		/*page*/
+		$data = array(
+			'html' => file_get_contents($module . '.html'),
+			'css' => file_get_contents($module . '.css'),
+			'js' => file_get_contents($module . '.js'),
+		);
+		$modelCode->modify($code->id, $data);
+		/*config*/
+		$config = file_get_contents($module . '.json');
+		$config = preg_replace('/\t|\r|\n/', '', $config);
+		$config = json_decode($config);
+		if (!empty($config->extjs)) {
+			foreach ($config->extjs as $js) {
+				$modelCode->insert('xxt_code_external', array('code_id' => $code->id, 'type' => 'J', 'url' => $js), false);
+			}
+		}
+		if (!empty($config->extcss)) {
+			foreach ($config->extcss as $css) {
+				$modelCode->insert('xxt_code_external', array('code_id' => $code->id, 'type' => 'C', 'url' => $css), false);
+			}
+		}
+
+		return new \ResponseData($code->id);
+	}
+	/**
+	 * 重置抽奖页面
+	 *
+	 * @param string $aid
+	 * @param string $type
+	 */
+	public function pageReset_action($aid, $type = 'carousel') {
+		$modelCode = $this->model('code/page');
+
+		$options = array('fields' => 'lottery_page_id', 'cascaded' => 'N');
+		$app = $this->model('app\enroll')->byId($aid, $options);
+
+		$module = dirname(__FILE__) . '/module/lottery/' . $type;
+		/*page*/
+		$data = array(
+			'html' => file_get_contents($module . '.html'),
+			'css' => file_get_contents($module . '.css'),
+			'js' => file_get_contents($module . '.js'),
+		);
+		$modelCode->modify($app->lottery_page_id, $data);
+		/*config*/
+		$modelCode->delete('xxt_code_external', "code_id=$app->lottery_page_id");
+		$config = file_get_contents($module . '.json');
+		$config = preg_replace('/\t|\r|\n/', '', $config);
+		$config = json_decode($config);
+		if (!empty($config->extjs)) {
+			foreach ($config->extjs as $js) {
+				$modelCode->insert('xxt_code_external', array('code_id' => $app->lottery_page_id, 'type' => 'J', 'url' => $js), false);
+			}
+		}
+		if (!empty($config->extcss)) {
+			foreach ($config->extcss as $css) {
+				$modelCode->insert('xxt_code_external', array('code_id' => $app->lottery_page_id, 'type' => 'C', 'url' => $css), false);
+			}
+		}
+
+		return new \ResponseData($app->lottery_page_id);
+	}
+	/**
 	 * 抽奖的轮次
 	 */
 	public function roundsGet_action($aid) {

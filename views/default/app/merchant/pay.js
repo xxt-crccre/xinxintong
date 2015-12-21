@@ -1,3 +1,11 @@
+if (/MicroMessenger/i.test(navigator.userAgent) && window.signPackage !== undefined) {
+    signPackage.jsApiList = ['hideOptionMenu'];
+    signPackage.debug = false;
+    wx.config(signPackage);
+    wx.ready(function() {
+        wx.hideOptionMenu();
+    });
+}
 app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $http, $timeout, $q) {
     var ls;
     ls = location.search;
@@ -14,8 +22,7 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $h
         var params;
         params = rsp.data;
         $scope.User = params.user;
-        $scope.Page = params.page;
-        window.setPage(params.page);
+        window.setPage($scope, params.page);
         $timeout(function() {
             $scope.$broadcast('xxt.app.merchant.ready');
         });
@@ -29,7 +36,7 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', '$q', function($scope, $h
                     if (res.err_msg === 'get_brand_wcpay_request:ok') {
                         location.href = '/rest/app/merchant/payok?mpid=' + $scope.mpid + '&shop=' + $scope.shopId + '&order=' + $scope.orderId;
                     } else {
-                        alert(res.err_code + res.err_desc + res.err_msg);
+                        alert('支付未完成');
                     }
                 }
             );

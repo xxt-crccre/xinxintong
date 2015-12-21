@@ -3,7 +3,7 @@ namespace app\merchant;
 
 require_once dirname(dirname(dirname(__FILE__))) . '/member_base.php';
 /**
- * 产品
+ * 商品
  */
 class product extends \member_base {
 	/**
@@ -16,83 +16,98 @@ class product extends \member_base {
 		return $rule_action;
 	}
 	/**
-	 * 进入产品展示页
+	 * 进入商品展示页
 	 *
-	 * $mpid mpid'id
-	 * $shop shop'id
-	 */
-	public function index_action($mpid, $shop, $mocker = null, $code = null) {
-		/**
-		 * 获得当前访问用户
-		 */
-		$openid = $this->doAuth($mpid, $code, $mocker);
-
-		$this->afterOAuth($mpid, $shop, $openid);
-	}
-	/**
-	 * 返回页面
-	 */
-	public function afterOAuth($mpid, $shopId, $openid) {
-		$this->view_action('/app/merchant/products');
-	}
-	/**
-	 * 获得属性的可选值
-	 *
+	 * @param string $mpid mpid'id
+	 * @param int $shop shop'id
 	 * @param int $catelog
-	 * @param string 逗号分隔的属性值
+	 * @param int $product
+	 *
+	 * @return
 	 */
-	public function getByPropValue_action($catelog, $vids = '', $cascaded = 'N') {
-		$vids = empty($vids) ? array() : explode(',', $vids);
+	public function index_action($mpid, $shop, $catelog, $product, $mocker = null, $code = null) {
+		//$openid = $this->doAuth($mpid, $code, $mocker);
+		$options = array(
+			'fields' => 'title',
+			'cascaded' => 'N',
+		);
+		$page = $this->model('app\merchant\page')->byType('product', $shop, $catelog, 0, $options);
+		if (empty($page)) {
+			$this->outputError('指定的页面不存在');
+		} else {
+			$page = $page[0];
+			\TPL::assign('title', $page->title);
+			\TPL::output('/app/merchant/product');
+			exit;
+		}
+	}
+	/**
+	 * 获得商品的页面定义
+	 */
+	public function pageGet_action($mpid, $shop, $catelog, $product) {
+		// current visitor
+		$user = $this->getUser($mpid);
+		// page
+		$page = $this->model('app\merchant\page')->byType('product', $shop, $catelog);
+		if (empty($page)) {
+			return new \ResponseError('没有获得商品页定义');
+		}
+		$page = $page[0];
 
+		$params = array(
+			'user' => $user,
+			'page' => $page,
+		);
+
+		return new \ResponseData($params);
+	}
+	/**
+	 * 获得符合条件的商品
+	 *
+	 * @param int $catelog 商品所属的分类
+	 * @param string $pvids 逗号分隔的商品属性值
+	 * @param int $beginAt 商品的sku的有效期开始时间
+	 * @param int $endAt 商品的sku的有效期结束时间
+	 *
+	 */
+	public function list_action($catelog, $pvids = '', $beginAt = 0, $endAt = 0, $cascaded = 'N') {
+		/*分类*/
+		$cateFields = 'id,sid,name,pattern,pages';
+		$catelog = $this->model('app\merchant\catelog')->byId($catelog, array('fields' => $cateFields, 'cascaded' => 'Y'));
+		/*商品属性*/
+		$pvids = empty($pvids) ? array() : explode(',', $pvids);
+		/*商品状态*/
 		$state = array(
 			'disabled' => 'N',
 			'active' => 'Y',
 		);
-		$products = $this->model('app\merchant\product')->byPropValue($catelog, $vids, $cascaded, $state);
+		/*有效期，缺省为当天*/
+		$beginAt === 0 && ($beginAt = mktime(0, 0, 0));
+		$endAt === 0 && ($endAt = mktime(23, 59, 59));
 
-		return new \ResponseData($products);
-	}
-	/*
-	 *
-	 */
-	public function get_action($id) {
-		$modelProd = $this->model('app\merchant\product');
-		$prod = $modelProd->byId($id, 'Y');
-
-		/*$prodPropValues = array();
-		foreach ($prod->catelog->properties as $prop) {
-		$prodPropValues[] = array(
-		'name' => $prop->name,
-		'value' => $prod->propValue2->{$prop->id}->name,
+		$options = array(
+			'fields' => 'id,cate_id,name,main_img,img,detail_img,detail_text,prop_value,sku_info',
+			'state' => $state,
+			'cascaded' => $cascaded,
+			'beginAt' => $beginAt,
+			'endAt' => $endAt,
 		);
-		}*/
-		//$prod->propValues = $prodPropValues;
+		$modelProd = $this->model('app\merchant\product');
+		$products = $modelProd->byPropValue($catelog, $pvids, $options);
 
-		return new \ResponseData($prod);
+		return new \ResponseData(array('products' => $products, 'catelog' => $catelog));
 	}
 	/**
 	 *
+	 * @param int $product
 	 */
-	public function skuGet_action($id) {
-		$sku = $this->model('app\merchant\sku')->byId($id);
-
-		if ($sku === false) {
-			return new \ResponseError('指定的库存不存在');
-		}
-
+	public function get_action($product) {
 		$modelProd = $this->model('app\merchant\product');
-		$prod = $modelProd->byId($sku->prod_id);
-		$cascaded = $modelProd->cascaded($prod->id);
+		$options = array(
+			'cascaded' => 'Y',
+		);
+		$prod = $modelProd->byId($product, $options);
 
-		$prodPropValues = array();
-		foreach ($cascaded->catelog->properties as $prop) {
-			$prodPropValues[] = array(
-				'name' => $prop->name,
-				'value' => $cascaded->propValue2->{$prop->id}->name,
-			);
-		}
-		$prod->propValues = $prodPropValues;
-
-		return new \ResponseData(array('sku' => $sku, 'prod' => $prod, 'cate' => $cascaded->catelog, 'propValues' => $cascaded->propValue2));
+		return new \ResponseData($prod);
 	}
 }

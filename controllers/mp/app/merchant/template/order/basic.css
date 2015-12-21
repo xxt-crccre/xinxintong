@@ -1,14 +1,38 @@
-#product{margin-bottom:1em;}
-#product .form-group{display:table;width:100%;margin-bottom:0;border-bottom:1px dotted #ddd}
-#product .form-group:last-child{border-bottom:0}
-#product .form-group>*{display:table-cell;}
-#product .form-group>label{width:6em;white-space:normal;word-wrap:break-word;word-break:break-all;background:#eee;padding-left:.5em}
-#product .form-group>div{padding-left:1em}
-#product .detail_text{max-height: 180px;overflow: auto}
-#skus{margin-bottom:2em;}
-#skus .sku .form-group{display:table;width:100%;margin-bottom:0;border-bottom:1px dotted #ddd}
-#skus .sku .form-group:last-child{border-bottom:0}
-#skus .sku .form-group>*{display:table-cell;}
-#skus .sku .form-group>label{width:6em;white-space:normal;word-wrap:break-word;word-break:break-all;background:#eee;padding-left:.5em}
-#skus .sku .form-group>div{padding-left:1em}
-#skus .sku.selected{outline:1px solid red;}
+.product{margin-bottom:1em;}
+.product .form-group{display:table;width:100%;margin-bottom:0;border-bottom:1px dotted #ddd}
+.product .form-group:last-child{border-bottom:0}
+.product .form-group>*{display:table-cell;}
+.product .form-group>label{width:6em;white-space:normal;word-wrap:break-word;word-break:break-all;background:#eee;padding-left:.5em}
+.product .form-group>div{padding-left:1em}
+.product .detail_text{max-height:180px;overflow:auto}
+
+/*skus*/
+.skus{margin:1em 0;}
+.sku{width:100%;border-bottom:1px dotted #ddd;padding-left:.5em;}
+.sku>div{padding:.5em 0;border-bottom:1px dotted #ddd;}
+.sku>div:last-child{border-bottom:0}
+.sku .price{display:table;width:100%;}
+.sku .price>*{display:table-cell;}
+.sku .price>label{width:6em;white-space:normal;word-wrap:break-word;word-break:break-all;background:#eee;padding-left:.5em}
+.sku .price>div{padding-left:1em;color:red;}
+
+/*properties*/
+input.form-control[readonly]{border:0;border-bottom:1px solid #ccc;border-radius:0;box-shadow:none;background:#fff}
+
+/*order properties*/
+.order-properties{margin:0 .5em;}
+.order-property input.form-control{border-radius:0}
+
+/*order properties*/
+.feedback-properties{margin:0 .5em}
+.feedback-property .form-control{border-radius:0;background:#fcfcfc;box-shadow:none}
+
+/*contact*/
+.contact{margin:0 .5em;}
+.contact input.form-control{border-radius:0}
+
+/*footer*/
+body{padding-bottom:64px;}
+footer{display:-webkit-box;position:fixed;bottom:0;left:0;right:0;border-top:1px solid #ddd;}
+footer button{display:block;-webkit-box-flex:1;height:48px;border:0;background:white;border-left:1px solid #ddd;}
+footer button:first-child{border-left:0;}

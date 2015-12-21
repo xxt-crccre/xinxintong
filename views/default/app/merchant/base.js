@@ -3,8 +3,7 @@ if (/MicroMessenger/i.test(navigator.userAgent) && window.signPackage !== undefi
     signPackage.debug = false;
     wx.config(signPackage);
 }
-
-window.setPage = function(page) {
+window.setPage = function($scope, page) {
     if (page.ext_css && page.ext_css.length) {
         angular.forEach(page.ext_css, function(css) {
             var link, head;
@@ -16,14 +15,36 @@ window.setPage = function(page) {
         });
     }
     if (page.ext_js && page.ext_js.length) {
-        angular.forEach(page.ext_js, function(js) {
-            $.getScript(js.url);
-        });
-    }
-    if (page.js && page.js.length) {
+        var i, l, loadJs;
+        i = 0;
+        l = page.ext_js.length;
+        loadJs = function() {
+            var js;
+            js = page.ext_js[i];
+            $.getScript(js.url, function() {
+                i++;
+                if (i === l) {
+                    if (page.js && page.js.length) {
+                        $scope.$apply(
+                            function dynamicjs() {
+                                eval(page.js);
+                                $scope.Page = page;
+                            }
+                        );
+                    }
+                } else {
+                    loadJs();
+                }
+            });
+        };
+        loadJs();
+    } else if (page.js && page.js.length) {
         (function dynamicjs() {
             eval(page.js);
+            $scope.Page = page;
         })();
+    } else {
+        $scope.Page = page;
     }
 };
 app = angular.module('app', ['ngSanitize']);
@@ -32,20 +53,6 @@ app.config(['$controllerProvider', function($cp) {
         controller: $cp.register
     };
 }]);
-app.directive('dynamicHtml', function($compile) {
-    return {
-        restrict: 'EA',
-        replace: true,
-        link: function(scope, ele, attrs) {
-            scope.$watch(attrs.dynamicHtml, function(html) {
-                if (html && html.length) {
-                    ele.html(html);
-                    $compile(ele.contents())(scope);
-                }
-            });
-        }
-    };
-});
 app.factory('Catelog', function($http, $q) {
     var Catelog = function(mpid, shopId) {
         this.mpid = mpid;
@@ -85,7 +92,7 @@ app.factory('Product', function($http, $q) {
         url = '/rest/app/merchant/product/get';
         url += '?mpid=' + this.mpid;
         url += '&shop=' + this.shopId;
-        url += '&id=' + id;
+        url += '&product=' + id;
         $http.get(url).success(function(rsp) {
             if (typeof rsp === 'undefined') {
                 alert(rsp);
@@ -99,11 +106,14 @@ app.factory('Product', function($http, $q) {
         });
         return promise;
     };
-    Product.prototype.list = function(catelogId) {
+    Product.prototype.list = function(catelogId, propValues, beginAt, endAt) {
         var deferred, promise, url;
         deferred = $q.defer();
         promise = deferred.promise;
-        url = '/rest/app/merchant/product/getByPropValue?catelog=' + catelogId;
+        url = '/rest/app/merchant/product/list?catelog=' + catelogId;
+        propValues && propValues.length && (url += '&pvids=' + propValues);
+        beginAt && (url += '&beginAt=' + beginAt);
+        endAt && (url += '&endAt=' + endAt);
         url += '&cascaded=Y';
         $http.get(url).success(function(rsp) {
             if (typeof rsp === 'undefined') {
@@ -121,19 +131,30 @@ app.factory('Product', function($http, $q) {
     return Product;
 });
 app.factory('Sku', function($http, $q) {
-    var Sku = function(mpid, shopId, productId) {
+    var Sku = function(mpid, shopId) {
         this.mpid = mpid;
         this.shopId = shopId;
-        this.productId = productId;
     };
-    Sku.prototype.get = function() {
+    Sku.prototype.get = function(catelogId, productId, options) {
         var deferred, promise, url;
         deferred = $q.defer();
         promise = deferred.promise;
         url = '/rest/app/merchant/sku/byProduct';
         url += '?mpid=' + this.mpid;
         url += '&shop=' + this.shopId;
-        url += '&product=' + this.productId;
+        url += '&catelog=' + catelogId;
+        url += '&product=' + productId;
+        if (options) {
+            if (options.autogen && options.autogen === 'Y') {
+                url += '&autogen=Y';
+            }
+            if (options.beginAt) {
+                url += '&beginAt=' + Math.round(options.beginAt / 1000);
+            }
+            if (options.endAt) {
+                url += '&endAt=' + Math.round(options.endAt / 1000);
+            }
+        }
         $http.get(url).success(function(rsp) {
             if (typeof rsp === 'undefined') {
                 alert(rsp);
@@ -145,6 +166,29 @@ app.factory('Sku', function($http, $q) {
             }
             deferred.resolve(rsp.data);
         });
+        return promise;
+    };
+    Sku.prototype.list = function(ids) {
+        var deferred, promise, url;
+        deferred = $q.defer();
+        promise = deferred.promise;
+        if (ids && ids.length) {
+            url = '/rest/app/merchant/sku/list';
+            url += '?mpid=' + this.mpid;
+            url += '&shop=' + this.shopId;
+            url += '&ids=' + ids;
+            $http.get(url).success(function(rsp) {
+                if (typeof rsp === 'undefined') {
+                    alert(rsp);
+                    return;
+                }
+                if (rsp.err_code != 0) {
+                    alert(rsp.data);
+                    return;
+                }
+                deferred.resolve(rsp.data);
+            });
+        }
         return promise;
     };
     return Sku;
@@ -203,6 +247,48 @@ app.factory('Order', function($http, $q) {
         url += '?mpid=' + this.mpid;
         url += '&shop=' + this.shopId;
         $http.post(url, orderInfo).success(function(rsp) {
+            if (typeof rsp === 'undefined') {
+                alert(rsp);
+                return;
+            }
+            if (rsp.err_code != 0) {
+                alert(rsp.err_msg);
+                return;
+            }
+            deferred.resolve(rsp.data);
+        });
+        return promise;
+    };
+    Order.prototype.modify = function(orderId, orderInfo) {
+        var deferred, promise, url;
+        deferred = $q.defer();
+        promise = deferred.promise;
+        url = '/rest/app/merchant/order/modify';
+        url += '?mpid=' + this.mpid;
+        url += '&shop=' + this.shopId;
+        url += '&order=' + orderId;
+        $http.post(url, orderInfo).success(function(rsp) {
+            if (typeof rsp === 'undefined') {
+                alert(rsp);
+                return;
+            }
+            if (rsp.err_code != 0) {
+                alert(rsp.err_msg);
+                return;
+            }
+            deferred.resolve(rsp.data);
+        });
+        return promise;
+    };
+    Order.prototype.cancel = function(orderId) {
+        var deferred, promise, url;
+        deferred = $q.defer();
+        promise = deferred.promise;
+        url = '/rest/app/merchant/order/cancel';
+        url += '?mpid=' + this.mpid;
+        url += '&shop=' + this.shopId;
+        url += '&order=' + orderId;
+        $http.get(url).success(function(rsp) {
             if (typeof rsp === 'undefined') {
                 alert(rsp);
                 return;

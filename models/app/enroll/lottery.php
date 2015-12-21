@@ -5,10 +5,9 @@ class lottery_model extends \TMS_MODEL {
 	/**
 	 * 参加抽奖活动的人
 	 */
-	public function players($aid, $rid) {
+	public function &players($aid, $rid, $hasData = 'N') {
 		$result = array(array(), array());
-
-		$w = "e.aid='$aid'";
+		$w = "e.aid='$aid' and e.state=1";
 		$w .= " and not exists(select 1 from xxt_enroll_lottery l where e.enroll_key=l.enroll_key)";
 		$q = array(
 			'e.id,e.enroll_key,e.nickname,e.openid,e.enroll_at,signin_at,e.tags',
@@ -33,21 +32,22 @@ class lottery_model extends \TMS_MODEL {
 				foreach ($cds as $cd) {
 					$player->{$cd->name} = $cd->value;
 				}
-
 			}
 			/**
 			 * 删除没有填写报名信息数据
 			 */
-			$players2 = array();
-			foreach ($players as $player2) {
-				if (empty($player2->name) && empty($player2->mobile)) {
-					continue;
+			if ($hasData === 'Y') {
+				$players2 = array();
+				foreach ($players as $p2) {
+					if (empty($p2->name) && empty($p2->mobile)) {
+						continue;
+					}
+					$players2[] = $p2;
 				}
-
-				//$player2->tags = explode(',', $player2->tags);
-				$players2[] = $player2;
+				$result[0] = $players2;
+			} else {
+				$result[0] = $players;
 			}
-			$result[0] = $players2;
 		}
 		/**
 		 * 已经抽中的人
@@ -79,23 +79,14 @@ class lottery_model extends \TMS_MODEL {
 		return $result;
 	}
 	/**
-	 *
+	 * 获得抽奖的轮次
+	 * @param string $aid
+	 * @param array $options
 	 */
-	public function rounds($aid) {
-		/**
-		 * 获得活动的定义
-		 */
+	public function &rounds($aid, $options = array()) {
+		$fields = isset($options['fields']) ? $options['fields'] : '*';
 		$q = array(
-			'access_control',
-			'xxt_enroll',
-			"id='$aid'",
-		);
-		$act = $this->query_obj_ss($q);
-		/**
-		 * 获得抽奖的轮次
-		 */
-		$q = array(
-			'*',
+			$fields,
 			'xxt_enroll_lottery_round',
 			"aid='$aid'",
 		);
@@ -106,7 +97,7 @@ class lottery_model extends \TMS_MODEL {
 	/**
 	 * 活动中奖名单
 	 */
-	public function winners($aid, $rid = null) {
+	public function &winners($aid, $rid = null) {
 		/**
 		 * 获得活动的定义
 		 */
@@ -120,7 +111,7 @@ class lottery_model extends \TMS_MODEL {
 		 * 已经抽中的人
 		 */
 		$q = array(
-			'l.*,r.title,e.enroll_key',
+			'l.*,r.title,e.enroll_key,e.nickname',
 			'xxt_enroll_lottery l,xxt_enroll_lottery_round r,xxt_enroll_record e',
 			"l.aid='$aid' and l.round_id=r.round_id and l.aid=e.aid and l.enroll_key=e.enroll_key",
 		);

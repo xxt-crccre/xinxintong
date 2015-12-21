@@ -29,7 +29,10 @@ class product extends \mp\app\app_base {
 	 */
 	public function get_action($product) {
 		$model = $this->model('app\merchant\product');
-		$prod = $model->byId($product, 'Y');
+		$options = array(
+			'cascaded' => 'Y',
+		);
+		$prod = $model->byId($product, $options);
 		return new \ResponseData($prod);
 	}
 	/**
@@ -42,10 +45,7 @@ class product extends \mp\app\app_base {
 		$model = $this->model('app\merchant\product');
 		$state = array('disabled' => 'N');
 		$products = $model->byShopId($shop, $catelog, $state);
-		foreach ($products as &$prod) {
-			$cascaded = $model->cascaded($prod->id);
-			$prod->propValue2 = $cascaded->propValue2;
-		}
+
 		return new \ResponseData($products);
 	}
 	/**
@@ -84,9 +84,9 @@ class product extends \mp\app\app_base {
 		);
 		$product['id'] = $this->model()->insert('xxt_merchant_product', $product, true);
 
-		$cascaded = $this->model('app\merchant\product')->cascaded($product['id']);
-		$product['catelog'] = $cascaded->catelog;
-		$product['propValue2'] = $cascaded->propValue2;
+		//$cascaded = $this->model('app\merchant\product')->cascaded($product['id']);
+		//$product['catelog'] = $cascaded->catelog;
+		//$product['propValue2'] = $cascaded->propValue2;
 
 		return new \ResponseData($product);
 	}
@@ -212,14 +212,14 @@ class product extends \mp\app\app_base {
 		return new \ResponseData($rst);
 	}
 	/**
-	 *
+	 * @param int $product
 	 */
 	public function skuList_action($product) {
 		$modelSku = $this->model('app\merchant\sku');
-		$state = array(
+		$options = array(
 			'disabled' => 'N',
 		);
-		$skus = $modelSku->byProduct($product, $state);
+		$skus = $modelSku->byProduct($product, $options);
 
 		return new \ResponseData($skus);
 	}
@@ -231,6 +231,7 @@ class product extends \mp\app\app_base {
 	 */
 	public function skuCreate_action($product, $cateSku) {
 		$prod = $this->model('app\merchant\product')->byId($product);
+		$cateSku = $this->model('app\merchant\catelog')->skuById($cateSku);
 
 		$creater = \TMS_CLIENT::get_client_uid();
 
@@ -238,7 +239,7 @@ class product extends \mp\app\app_base {
 			'mpid' => $prod->mpid,
 			'sid' => $prod->sid,
 			'cate_id' => $prod->cate_id,
-			'cate_sku_id' => $cateSku,
+			'cate_sku_id' => $cateSku->id,
 			'prod_id' => $prod->id,
 			'create_at' => time(),
 			'creater' => $creater,
@@ -246,13 +247,14 @@ class product extends \mp\app\app_base {
 			'ori_price' => 0,
 			'price' => 0,
 			'quantity' => 1,
+			'has_validity' => $cateSku->has_validity,
 			'product_code' => '',
 		);
 		$skuId = $this->model()->insert('xxt_merchant_product_sku', $sku, true);
 		$sku = $this->model('app\merchant\sku')->byId($skuId);
 
 		/*更新catelog sku状态*/
-		$this->model('app\merchant\catelog')->useSku($cateSku);
+		$this->model('app\merchant\catelog')->useSku($cateSku->id);
 
 		return new \ResponseData($sku);
 	}
