@@ -42,7 +42,7 @@ class qyauth extends \member_base {
 			/* 更新已有用户 */
 			$existUser = $existUsers[$user['useraccount']];
 			unset($existUsers[$user['useraccount']]);
-			if ($existUser->name !== $user['name'] || $existUser->mobile !== $user['mobile'] || count(array_diff($existUser->department, $user['department'])) > 0 || count(array_diff($user['department'], $existUser->department)) > 0) {
+			if ($existUser->name !== $user['name'] || (isset($existUser->mobile) && $existUser->mobile !== $user['mobile']) || count(array_diff($existUser->department, $user['department'])) > 0 || count(array_diff($user['department'], $existUser->department)) > 0) {
 				$rst = $proxy->userUpdate($user['useraccount'], $user);
 			}
 		}
@@ -299,7 +299,7 @@ class qyauth extends \member_base {
 						}
 						$child['order'] = $order + 1;
 						$child['pid'] = (int) $dept['id'];
-						$localDepts[] = $child;
+						//$localDepts[] = $child;
 						//$this->getLocalDepts($mpid, $child, $localDepts);
 						$pendingLocalDepts[] = $child;
 					}
@@ -308,19 +308,24 @@ class qyauth extends \member_base {
 				$_SESSION['localDepts'] = $localDepts;
 				$_SESSION['pendingLocalDepts'] = $pendingLocalDepts;
 				$_SESSION['localDeptsGuid2Id'] = $localDeptsGuid2Id;
-
-				return new \ResponseData(array('param' => array('next' => 1, 'step' => $step, 'left' => count($pendingLocalDepts), 'desc' => '完成获取组织机构部门')));
-			} else {
 				$step++;
-				if ($step == count($localDepts)) {
+
+				return new \ResponseData(array('param' => array('count' => count($localDepts), 'next' => 1, 'step' => $step, 'left' => count($pendingLocalDepts), 'desc' => '获取组织机构部门')));
+			} else {
+				$localDepts = $_SESSION['localDepts'];
+				$pendingLocalDepts = $_SESSION['pendingLocalDepts'];
+				$dept = $pendingLocalDepts[$step - 1];
+				$this->getLocalDepts($mpid, $dept, $localDepts);
+				$_SESSION['localDepts'] = $localDepts;
+				$step++;
+				if ($step == count($pendingLocalDepts)) {
 					unset($_SESSION['pendingLocalDepts']);
 					return new \ResponseData(array('param' => array('next' => 2, 'desc' => '完成获取组织机构中已有部门（' . count($localDepts) . '）')));
 				} else {
-					return new \ResponseData(array('param' => array('next' => 1, 'step' => $step, 'left' => count($pendingLocalDepts) - $step, 'desc' => '完成获取组织机构部门')));
+					return new \ResponseData(array('param' => array('count' => count($localDepts), 'next' => 1, 'step' => $step, 'left' => count($pendingLocalDepts) - $step + 1, 'desc' => '获取组织机构部门')));
 				}
 			}
 		}
-		die('dddd:');
 		/**
 		 * 更新部门数据
 		 */
