@@ -1,12 +1,12 @@
 <div ng-app='xxtApp' ng-controller='loginCtrl' ng-init="token='<?php TPL::pt("token");?>';jsonMember='<?php echo TPL::val("authedMember") ? urlencode(json_encode(TPL::val("authedMember"))):'';?>';authid='<?php TPL::pt("authid");?>'">
     <div id='errmsg' class='alert alert-danger' ng-class="errmsg=='' ? '':'active'" ng-click="errmsg=''">{{errmsg}}</div>
-    <div class='container'>
+    <div class='container' ng-cloak class='ng-cloak'>
         <div class='row'>
             <div class='form-group' style='margin-bottom:30px;color:#428bca'>
                 <h3 style='text-align:center'>用户认证信息提交</h3>
             </div>
             <div class='form-group' ng-if='authedMember'>
-                <h4>{{authedMember.name||authedMember.nickname}}，您好！您已经通过认证，不需要再次认证。</h3>
+                <h4><span ng-bind='authedMember.name||authedMember.nickname'></span>，您好！您已经通过认证，不需要再次认证。</h3>
             </div>
             <div class='form-group'>
                 <input type='text' ng-model='user.username' placeholder='用户名' class='form-control input-lg'>
