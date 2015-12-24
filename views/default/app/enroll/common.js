@@ -225,8 +225,12 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', function($scope, $http, $
         newRecord !== undefined && newRecord === 'Y' && (url += '&newRecord=Y');
         location.replace(url);
     };
-    $scope.openMatter = function(id, type) {
-        location.replace('/rest/mi/matter?mpid=' + LS.p.mpid + '&id=' + id + '&type=' + type);
+    $scope.openMatter = function(id, type, replace) {
+        if (replace) {
+            location.replace('/rest/mi/matter?mpid=' + LS.p.mpid + '&id=' + id + '&type=' + type);
+        } else {
+            location.href = '/rest/mi/matter?mpid=' + LS.p.mpid + '&id=' + id + '&type=' + type;
+        }
     };
     $scope.gotoLottery = function(event, lottery, ek) {
         event.preventDefault();
@@ -260,6 +264,7 @@ app.controller('ctrl', ['$scope', '$http', '$timeout', function($scope, $http, $
         $scope.mpa = params.mpaccount;
         $scope.App = params.app;
         $scope.User = params.user;
+        $scope.Schema = params.schema;
         if (params.app.multi_rounds === 'Y') {
             $scope.ActiveRound = params.activeRound;
         }

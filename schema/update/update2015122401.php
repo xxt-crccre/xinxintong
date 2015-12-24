@@ -2,7 +2,8 @@
 require_once '../../db.php';
 
 $sqls = array();
-$sqls[] = "ALTER TABLE xxt_enroll ADD can_invite char(1) not null default 'N' after can_autoenroll";
+$sqls[] = "alter table xxt_mpaccount add qrcode text after name";
+$sqls[] = "alter table xxt_mpaccount add public_id varchar(20) not null default '' after qrcode";
 
 foreach ($sqls as $sql) {
 	if (!$mysqli->query($sql)) {
