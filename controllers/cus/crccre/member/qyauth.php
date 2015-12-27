@@ -287,11 +287,9 @@ class qyauth extends \member_base {
 				foreach ($nodes as $order => $node) {
 					$node['order'] = $order + 1;
 					$node['pid'] = 1;
-					//$this->getLocalDepts($mpid, $node, $localDepts);
 					$localDepts[] = $node;
 				}
 				foreach ($localDepts as $dept) {
-					//$this->getLocalDepts($mpid, $node, $localDepts);
 					$children = $modelOrg->nodes($dept['guid']);
 					foreach ($children as $order => $child) {
 						if ($child['titletype'] === '5') {
@@ -299,12 +297,9 @@ class qyauth extends \member_base {
 						}
 						$child['order'] = $order + 1;
 						$child['pid'] = (int) $dept['id'];
-						//$localDepts[] = $child;
-						//$this->getLocalDepts($mpid, $child, $localDepts);
 						$pendingLocalDepts[] = $child;
 					}
 				}
-				//$this->getLocalDepts($mpid, $child, $localDepts);
 				$_SESSION['localDepts'] = $localDepts;
 				$_SESSION['pendingLocalDepts'] = $pendingLocalDepts;
 				$_SESSION['localDeptsGuid2Id'] = $localDeptsGuid2Id;
@@ -549,7 +544,7 @@ class qyauth extends \member_base {
 	/**
 	 *
 	 */
-	private function syncUpdateUser($mpid, $log) {
+	private function _syncUpdateUser($mpid, $log) {
 		$proxy = $this->model('mpproxy/qy', $mpid);
 		$modelOrg = $this->model('cus/org');
 
@@ -567,29 +562,170 @@ class qyauth extends \member_base {
 		return $rst;
 	}
 	/**
+	 * 当前用户是否在指定的企业号app中
+	 * 根据父部门是否在已经进行判断
+	 */
+	private function &_isUserInApp($mpid, &$user) {
+		$model = $this->model();
+		$udepts = array();
+		foreach ($user->department as $ud) {
+			$q = array(
+				'count(*)',
+				'xxt_member_department',
+				"mpid='$mpid' and extattr like '%\"id\":$ud,%'",
+			);
+			if ('0' !== $model->query_val_ss($q)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	/**
+	 * 当前用户是否在指定的企业号app中
+	 * 根据父部门是否在已经进行判断
+	 */
+	private function &_getDeptByRidInApp($mpid, $authid, $rid) {
+		$q = array(
+			'*',
+			'xxt_member_department',
+			"mpid='$mpid' and authapi_id=$authid and extattr like '%\"id\":$rpid,%'",
+		);
+		return $model->query_obj_ss($q);
+	}
+	/**
+	 *
+	 */
+	private function &_getQyAppAuthapis() {
+		$q = array(
+			'mpid,authid',
+			'xxt_member_authapi',
+			"type='inner' and used=0 and valid='Y'",
+		);
+		$authapis = $this->model()->query_objs_ss($q);
+
+		return $authapis;
+	}
+	/**
+	 * 在企业号的应用中创建用户
+	 */
+	private function _createQyUser4App($user, $timestamp) {
+		$authapis = $this->_getQyAppAuthapis();
+		foreach ($authapis as $authapi) {
+			if ($this->isUserInApp($authapi->mpid, $user)) {
+				$this->createQyFan($authapi->mpid, $user, $authapi->authid, $timestamp);
+			}
+		}
+		return true;
+	}
+	/**
+	 * 在企业号的应用中修改用户
+	 */
+	private function _updateQyUser4App($user, $timestamp) {
+		$modelMem = $this->model('user/member');
+		$authapis = $this->_getQyAppAuthapis();
+		foreach ($authapis as $authapi) {
+			if ($member = $modelMem->byOpenid($authapi->mpid, $user->userid, 'fid', $authapi->authid)) {
+				$this->updateQyFan($authapi->mpid, $member->fid, $user, $authapi->authid, $timestamp);
+			}
+		}
+		return true;
+	}
+	/**
+	 * 在企业号的应用中修改用户
+	 */
+	private function _deleteQyUser4App($userid, $timestamp) {
+		$model = $this->model();
+		$authapis = $this->_getQyAppAuthapis();
+		foreach ($authapis as $authapi) {
+			$model->delete(
+				'xxt_fans',
+				"mpid='$mpid' and fid in (select fid from xxt_member where mpid='$mpid' and authapi_id=$authapi->authid and openid=$userid)"
+			);
+			$model->delete(
+				'xxt_member',
+				"mpid='$authapi->mpid' and authapi_id=$authapi->authid and openid=$userid"
+			);
+		}
+		return true;
+	}
+	/**
+	 * 在企业号的应用中创建部门
+	 */
+	private function _createQyDept4App($dept, $rdept, $timestamp) {
+		$authapis = $this->_getQyAppAuthapis();
+		foreach ($authapis as $authapi) {
+			$pid = $dept['pid'];
+			if ($pdept = $this->_getDeptByRidInApp($authapi->mpid, $authapi->authid, $pid)) {
+				$rpdept = json_decode($pdept->extattr);
+				$rdept->paerntid = $rpdept->id;
+				$ldept = $modelDept->create($authapi->mpid, $authapi->authid, $pdept->id, null);
+				$model->update(
+					'xxt_member_department',
+					array(
+						'sync_at' => $timestamp,
+						'name' => $dept['title'],
+						'extattr' => json_encode($rdept),
+					),
+					"mpid='$mpid' and authapi_id=$authapi->authid and id=$ldept->id"
+				);
+			}
+		}
+		return true;
+	}
+	/**
+	 * 在企业号的应用中创建部门
+	 */
+	private function _updateQyDept4App($dept, $timestamp) {
+		$authapis = $this->_getQyAppAuthapis();
+		foreach ($authapis as $authapi) {
+			if ($ldept = $this->_getDeptByRidInApp($authapi->mpid, $authapi->authid, $dept['id'])) {
+				$model->update(
+					'xxt_member_department',
+					array(
+						'sync_at' => $timestamp,
+						'name' => $dept['title'],
+					),
+					"mpid='$mpid' and authapi_id=$authapi->authid and id=$ldept->id"
+				);
+			}
+		}
+		return true;
+	}
+	/**
+	 * 在企业号的应用中删除部门
+	 */
+	private function _deleteQyDept4App($lid, $timestamp) {
+		$authapis = $this->_getQyAppAuthapis();
+		foreach ($authapis as $authapi) {
+			if ($ldept = $this->_getDeptByRidInApp($authapi->mpid, $authapi->authid, $lid)) {
+				$model->delete(
+					'xxt_member_department',
+					"mpid='$mpid' and authapi_id=$authapi->authid and id=$lid"
+				);
+			}
+		}
+		return true;
+	}
+	/**
 	 * 将内部组织结构数据增量导入到企业号通讯录
 	 *
 	 * $mpid
 	 * $authid
 	 */
 	public function sync2Qy_action($mpid, $authid, $verbose = 'N') {
-		/**
-		 * 更新时间戳
-		 */
-		$timestamp = time();
+		$timestamp = time(); //更新时间戳
+		$proxy = $this->model('mpproxy/qy', $mpid);
+		$model = $this->model();
+		$modelOrg = $this->model('cus/org');
 
-		$last = (int) $this->model()->query_val_ss(array(
+		$last = (int) $model->query_val_ss(array(
 			'sync_to_qy_at',
 			'xxt_member_authapi',
 			"authid=$authid",
 		));
 
 		$result = array();
-
-		$proxy = $this->model('mpproxy/qy', $mpid);
-		$modelOrg = $this->model('cus/org');
 		$logs = $modelOrg->getOperationHistorysByTime($last);
-
 		foreach ($logs as $log) {
 			switch ($log['operation']) {
 			case '1': // 新建用户
@@ -604,6 +740,15 @@ class qyauth extends \member_base {
 						'department' => array($parentNode['id']),
 					);
 					$rst = $proxy->userCreate($user['useraccount'], $user);
+					if ($rst[0] === true) {
+						$user = $proxy->userGet($user['useraccount']);
+						if ($user[0] === false) {
+							$result[] = array($log, $user[1]);
+						} else {
+							$user = $user[1];
+							$this->_createQyUser4App($user, $timestamp);
+						}
+					}
 					if ($verbose === 'Y' || $rst[0] === false) {
 						$result[] = array($log, $rst);
 					}
@@ -623,8 +768,26 @@ class qyauth extends \member_base {
 						'department' => array($parentNode['id']),
 					);
 					$rst = $proxy->userCreate($user['useraccount'], $user);
+					if ($rst[0] === true) {
+						$user = $proxy->userGet($user['useraccount']);
+						if ($user[0] === false) {
+							$result[] = array($log, $user[1]);
+						} else {
+							$user = $user[1];
+							$this->_createQyUser4App($user, $timestamp);
+						}
+					}
 				} else {
-					$rst = $this->syncUpdateUser($mpid, $log);
+					$rst = $this->_syncUpdateUser($mpid, $log);
+					if ($rst[0] === true) {
+						$user = $proxy->userGet($user['useraccount']);
+						if ($user[0] === false) {
+							$result[] = array($log, $user[1]);
+						} else {
+							$user = $user[1];
+							$this->_updateQyUser4App($user, $timestamp);
+						}
+					}
 				}
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst);
@@ -633,13 +796,25 @@ class qyauth extends \member_base {
 			case '4': // 迁移用户
 			case '10': // 给员工添加岗位
 			case '11': // 移除用户某岗位
-				$rst = $this->syncUpdateUser($mpid, $log);
+				$rst = $this->_syncUpdateUser($mpid, $log);
+				if ($rst[0] === true) {
+					$user = $proxy->userGet($user['useraccount']);
+					if ($user[0] === false) {
+						$result[] = array($log, $user[1]);
+					} else {
+						$user = $user[1];
+						$this->_updateQyUser4App($user, $timestamp);
+					}
+				}
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst);
 				}
 				break;
 			case '3': // 删除用户
 				$rst = $proxy->userDelete($log['useraccount']);
+				if ($rst[0] === true) {
+					$this->_deleteQyUser4App($log['useraccount'], $timestamp);
+				}
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst);
 				}
@@ -654,6 +829,11 @@ class qyauth extends \member_base {
 					'order' => $deptNode['orderid'],
 				);
 				$rst = $proxy->departmentCreate($dept['title'], $dept['pid'], $dept['order'], $dept['id']);
+				if ($rst[0] === true) {
+					$rdept = new \stdClass;
+					$rdept->id = $rst[1]->id;
+					$this->_createQyDept4App($dept, $rdept, $timestamp);
+				}
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst, $dept);
 				}
@@ -661,6 +841,13 @@ class qyauth extends \member_base {
 			case '6': // 更新组织
 				$deptNode = $modelOrg->getNodeByGUID($log['guid']);
 				$rst = $proxy->departmentUpdate($deptNode['id'], $deptNode['title']);
+				if ($rst[0] === true) {
+					$dept = array(
+						'id' => $deptNode['id'],
+						'title' => $deptNode['title'],
+					);
+					$this->_updateQyDept4App($dept, $timestamp);
+				}
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst, $deptNode['title']);
 				}
@@ -668,6 +855,9 @@ class qyauth extends \member_base {
 			case '7': // 删除组织
 				$deptNode = $modelOrg->getNodeByGUID($log['guid']);
 				$rst = $proxy->departmentDelete($deptNode['id']);
+				if ($rst[0] === true) {
+					$this->_deleteQyDept4App($deptNode['id'], $timestamp);
+				}
 				if ($verbose === 'Y' || $rst[0] === false) {
 					$result[] = array($log, $rst);
 				}
@@ -693,7 +883,7 @@ class qyauth extends \member_base {
 		/**
 		 * 更新时间戳
 		 */
-		$this->model()->update(
+		$model->update(
 			'xxt_member_authapi',
 			array('sync_to_qy_at' => $timestamp),
 			"authid=$authid"
