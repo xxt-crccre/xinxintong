@@ -880,14 +880,15 @@ class qyauth extends \member_base {
 				break;
 			}
 		}
-		/**
-		 * 更新时间戳
-		 */
+		/*更新时间戳*/
 		$model->update(
 			'xxt_member_authapi',
 			array('sync_to_qy_at' => $timestamp),
 			"authid=$authid"
 		);
+		/*记录日志*/
+		$modelLog = $this->model('log');
+		$modelLog->log($mpid, 'sync2Qy', json_encode($result));
 
 		return new \ResponseData($result);
 	}
