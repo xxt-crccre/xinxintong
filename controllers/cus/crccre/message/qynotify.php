@@ -59,8 +59,8 @@ class qynotify extends \xxt_base {
 		}
 
 		$card = array(
-			'title' => urlencode($title),
-			'description' => urlencode($summary),
+			'title' => $title,
+			'description' => $summary,
 			'url' => $url,
 			'picurl' => $picurl,
 		);
@@ -70,16 +70,12 @@ class qynotify extends \xxt_base {
 			'news' => array(
 				'articles' => array($card),
 			),
-			'touser' => $userid,
 		);
-
-		$rst = $this->send_to_qyuser($mpid, $msg);
-
+		$rst = $this->sendByOpenid($mpid, $userid, $msg);
 		if (false === $rst[0]) {
 			return new \ResponseError($rst[1]);
 		} else {
 			return new \ResponseData('ok');
 		}
-
 	}
 }
