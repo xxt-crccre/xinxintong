@@ -888,7 +888,7 @@ class qyauth extends \member_base {
 		);
 		/*记录日志*/
 		$modelLog = $this->model('log');
-		$modelLog->log($mpid, 'sync2Qy', json_encode($result));
+		$modelLog->log($mpid, 'sync2Qy', $model->toJson($result));
 
 		return new \ResponseData($result);
 	}
