@@ -565,7 +565,7 @@ class qyauth extends \member_base {
 	 * 当前用户是否在指定的企业号app中
 	 * 根据父部门是否在已经进行判断
 	 */
-	private function &_isUserInApp($mpid, &$user) {
+	private function _isUserInApp($mpid, &$user) {
 		$model = $this->model();
 		$udepts = array();
 		foreach ($user->department as $ud) {
@@ -588,9 +588,11 @@ class qyauth extends \member_base {
 		$q = array(
 			'*',
 			'xxt_member_department',
-			"mpid='$mpid' and authapi_id=$authid and extattr like '%\"id\":$rpid,%'",
+			"mpid='$mpid' and authapi_id=$authid and extattr like '%\"id\":$rid,%'",
 		);
-		return $model->query_obj_ss($q);
+		$rst = $this->model()->query_obj_ss($q);
+
+		return $rst;
 	}
 	/**
 	 *
@@ -611,7 +613,7 @@ class qyauth extends \member_base {
 	private function _createQyUser4App($user, $timestamp) {
 		$authapis = $this->_getQyAppAuthapis();
 		foreach ($authapis as $authapi) {
-			if ($this->isUserInApp($authapi->mpid, $user)) {
+			if ($this->_isUserInApp($authapi->mpid, $user)) {
 				$this->createQyFan($authapi->mpid, $user, $authapi->authid, $timestamp);
 			}
 		}
@@ -639,11 +641,11 @@ class qyauth extends \member_base {
 		foreach ($authapis as $authapi) {
 			$model->delete(
 				'xxt_fans',
-				"mpid='$mpid' and fid in (select fid from xxt_member where mpid='$mpid' and authapi_id=$authapi->authid and openid=$userid)"
+				"fid in (select fid from xxt_member where authapi_id=$authapi->authid and openid=$userid)"
 			);
 			$model->delete(
 				'xxt_member',
-				"mpid='$authapi->mpid' and authapi_id=$authapi->authid and openid=$userid"
+				"authapi_id=$authapi->authid and openid=$userid"
 			);
 		}
 		return true;
@@ -652,6 +654,7 @@ class qyauth extends \member_base {
 	 * 在企业号的应用中创建部门
 	 */
 	private function _createQyDept4App($dept, $rdept, $timestamp) {
+		$model = $this->model();
 		$authapis = $this->_getQyAppAuthapis();
 		foreach ($authapis as $authapi) {
 			$pid = $dept['pid'];
@@ -666,7 +669,7 @@ class qyauth extends \member_base {
 						'name' => $dept['title'],
 						'extattr' => json_encode($rdept),
 					),
-					"mpid='$mpid' and authapi_id=$authapi->authid and id=$ldept->id"
+					"authapi_id=$authapi->authid and id=$ldept->id"
 				);
 			}
 		}
@@ -676,6 +679,7 @@ class qyauth extends \member_base {
 	 * 在企业号的应用中创建部门
 	 */
 	private function _updateQyDept4App($dept, $timestamp) {
+		$model = $this->model();
 		$authapis = $this->_getQyAppAuthapis();
 		foreach ($authapis as $authapi) {
 			if ($ldept = $this->_getDeptByRidInApp($authapi->mpid, $authapi->authid, $dept['id'])) {
@@ -685,7 +689,7 @@ class qyauth extends \member_base {
 						'sync_at' => $timestamp,
 						'name' => $dept['title'],
 					),
-					"mpid='$mpid' and authapi_id=$authapi->authid and id=$ldept->id"
+					"authapi_id=$authapi->authid and id=$ldept->id"
 				);
 			}
 		}
@@ -695,12 +699,13 @@ class qyauth extends \member_base {
 	 * 在企业号的应用中删除部门
 	 */
 	private function _deleteQyDept4App($lid, $timestamp) {
+		$model = $this->model();
 		$authapis = $this->_getQyAppAuthapis();
 		foreach ($authapis as $authapi) {
 			if ($ldept = $this->_getDeptByRidInApp($authapi->mpid, $authapi->authid, $lid)) {
 				$model->delete(
 					'xxt_member_department',
-					"mpid='$mpid' and authapi_id=$authapi->authid and id=$lid"
+					"authapi_id=$authapi->authid and id=$lid"
 				);
 			}
 		}
@@ -780,7 +785,7 @@ class qyauth extends \member_base {
 				} else {
 					$rst = $this->_syncUpdateUser($mpid, $log);
 					if ($rst[0] === true) {
-						$user = $proxy->userGet($user['useraccount']);
+						$user = $proxy->userGet($log['useraccount']);
 						if ($user[0] === false) {
 							$result[] = array($log, $user[1]);
 						} else {
@@ -798,7 +803,7 @@ class qyauth extends \member_base {
 			case '11': // 移除用户某岗位
 				$rst = $this->_syncUpdateUser($mpid, $log);
 				if ($rst[0] === true) {
-					$user = $proxy->userGet($user['useraccount']);
+					$user = $proxy->userGet($log['useraccount']);
 					if ($user[0] === false) {
 						$result[] = array($log, $user[1]);
 					} else {
